@@ -1,0 +1,58 @@
+<resources>
+    <string name="app_name">EmuLink</string>
+
+    <!-- Onboarding -->
+    <string name="welcome_title">Welcome to EmuLink</string>
+    <string name="onboarding_storage_title">Storage Access</string>
+    <string name="onboarding_storage_desc">EmuLink needs permission to manage themes.</string>
+    <string name="onboarding_grant_permission">Grant Permission</string>
+    <string name="onboarding_permission_granted">Permission Granted</string>
+    <string name="onboarding_folder_title">Root Folder</string>
+    <string name="onboarding_folder_desc">Choose where EmuLink stores its data.</string>
+    <string name="onboarding_select_folder">Select Folder</string>
+    <string name="onboarding_change_folder">Change Folder</string>
+    <string name="next">Next</string>
+    <string name="back">Back</string>
+    <string name="finish_setup">Finish Setup</string>
+    <string name="preferences_title">Preferences</string>
+    <string name="preferences_subtitle">You can change these later in Settings.</string>
+
+    <!-- Launcher -->
+    <string name="launcher_title">EmuLink Console</string>
+    <string name="detected_game">Detected: %1$s</string>
+    <string name="searching_game">Searching for game…</string>
+    <string name="dev_mode_active">Dev Mode Active</string>
+    <string name="no_themes_for_game">No themes found for %1$s</string>
+    <string name="no_themes_installed">No themes installed. Sync the repository or import a theme.</string>
+
+    <!-- Gallery -->
+    <string name="gallery_title">Theme Gallery</string>
+    <string name="tab_community">Community</string>
+    <string name="tab_local">Local</string>
+    <string name="requires_app_version">Requires App v%1$d</string>
+    <string name="update_available">Update Available (Local: v%1$s)</string>
+    <string name="installed">Installed</string>
+    <string name="imported">Imported</string>
+    <string name="no_imported_themes">No imported themes.\nUse the import button to add a .zip theme.</string>
+    <string name="import_theme">Import</string>
+
+    <!-- Dashboard -->
+    <string name="waiting_for_data">Waiting for data…</string>
+    <string name="exit">Exit</string>
+    <string name="reload">Reload</string>
+    <string name="debug">Debug</string>
+
+    <!-- Common -->
+    <string name="settings">Settings</string>
+    <string name="gallery">Gallery</string>
+    <string name="sync">Sync</string>
+    <string name="remove">Remove</string>
+    <string name="delete">Delete</string>
+
+    <!-- Settings -->
+    <string name="settings_autoboot_title">Auto-boot Theme</string>
+    <string name="settings_autoboot_desc">Automatically select a theme when a game is detected</string>
+    <string name="settings_repo_title">Repository URL</string>
+    <string name="settings_repo_desc">Where themes and configs are downloaded from</string>
+    <string name="settings_reset_default">Reset to default</string>
+</resources>
