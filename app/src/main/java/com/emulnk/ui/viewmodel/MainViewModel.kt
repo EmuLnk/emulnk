@@ -190,9 +190,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun filterThemes(allThemes: List<ThemeConfig>, gameId: String?, console: String?): List<ThemeConfig> {
         val currentAppVersion = configManager.getAppVersionCode()
+        val resolvedId = gameId?.let { configManager.resolveProfileId(it) }
 
         return allThemes.filter { theme ->
-            // Version check (always applied)
             val minVersion = theme.meta.minAppVersion ?: 1
             if (minVersion > currentAppVersion) {
                 if (BuildConfig.DEBUG) {
@@ -201,17 +201,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return@filter false
             }
 
-            // Game/console matching (only if gameId provided)
             if (gameId != null) {
-                val themeId = theme.targetProfileId
-                val matchesGame = gameId == themeId ||
-                                 (gameId.length >= 3 && themeId.length >= 3 && gameId.take(3) == themeId.take(3))
+                val themeTarget = theme.targetProfileId
+                val matchesGame = resolvedId != null && resolvedId.equals(themeTarget, ignoreCase = true)
 
                 val matchesConsole = theme.targetConsole == null || theme.targetConsole == console
 
                 val matches = matchesGame && matchesConsole
                 if (matches && BuildConfig.DEBUG) {
-                    android.util.Log.d(TAG, "Match Found: ${theme.id} targets $themeId")
+                    android.util.Log.d(TAG, "Match Found: ${theme.id} targets $themeTarget (resolved $gameId -> $resolvedId)")
                 }
                 return@filter matches
             }
@@ -240,7 +238,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun autoSelectTheme(gameId: String) {
         // Only auto-select if we haven't manually picked one or if the game changed
         val currentTheme = _selectedTheme.value
-        if (currentTheme == null || (currentTheme.targetProfileId != gameId && !gameId.startsWith(currentTheme.targetProfileId))) {
+        val resolvedId = configManager.resolveProfileId(gameId)
+        if (currentTheme == null || (resolvedId != null && !resolvedId.equals(currentTheme.targetProfileId, ignoreCase = true))) {
             val themes = _availableThemes.value
             if (themes.isNotEmpty()) {
                 val defaultId = _appConfig.value.defaultThemes[gameId]
