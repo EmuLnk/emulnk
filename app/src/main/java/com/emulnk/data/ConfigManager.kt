@@ -222,6 +222,24 @@ class ConfigManager(private val context: android.content.Context) {
         }
     }
 
+    fun resolveProfileId(gameId: String): String? {
+        if (!profilesDir.exists()) return null
+        val files = profilesDir.listFiles { f -> f.extension == "json" } ?: return null
+        for (file in files) {
+            val profile = parseProfile(file) ?: continue
+            // Gson bypasses Kotlin default values — gameIds can be null at runtime
+            if (profile.gameIds?.any { it.equals(gameId, ignoreCase = true) } == true) {
+                return profile.id
+            }
+        }
+        // Fallback: prefix matching (GameCube/Wii style)
+        val baseName = files.map { it.nameWithoutExtension }
+        if (gameId.length >= 3) {
+            baseName.find { gameId.startsWith(it, ignoreCase = true) }?.let { return it }
+        }
+        return null
+    }
+
     fun loadProfile(profileId: String): ProfileConfig? {
         if (BuildConfig.DEBUG) {
             Log.d(TAG, "Loading profile for: $profileId")

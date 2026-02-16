@@ -7,6 +7,7 @@ data class ProfileConfig(
     val id: String,
     val name: String,
     val platform: String,
+    val gameIds: List<String> = emptyList(),
     val dataPoints: List<DataPoint>,
     val macros: List<MacroConfig> = emptyList()
 )
@@ -18,7 +19,8 @@ data class DataPoint(
     val formula: String? = null,
     val addresses: Map<String, String> = emptyMap(),
     val pointer: Map<String, String>? = null,
-    val offset: String? = null
+    val offset: String? = null,
+    val offsets: List<String>? = null
 )
 
 data class MacroConfig(

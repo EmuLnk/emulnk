@@ -26,6 +26,9 @@ object MemoryConstants {
 
     /** Maximum valid 32-bit address */
     const val MAX_ADDRESS = 0xFFFFFFFFL
+
+    /** Maximum depth for multi-level pointer chains */
+    const val MAX_POINTER_CHAIN_DEPTH = 10
 }
 
 object UiConstants {

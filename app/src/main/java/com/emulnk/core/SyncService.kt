@@ -38,7 +38,7 @@ class SyncService(private var rootDir: File) {
     }
 
     suspend fun fetchRepoIndex(baseUrl: String): RepoIndex? {
-        val url = baseUrl.replace("archive/refs/heads/main.zip", "raw/main/index.json")
+        val url = baseUrl.replace(Regex("archive/refs/heads/(.+)\\.zip"), "raw/$1/index.json")
         var lastException: Exception? = null
 
         for (attempt in 0 until SyncConstants.MAX_RETRIES) {
@@ -90,7 +90,6 @@ class SyncService(private var rootDir: File) {
 
                 val body = response.body ?: return false
 
-                // Check content length to prevent downloading huge files
                 val contentLength = body.contentLength()
                 if (contentLength > SyncConstants.MAX_DOWNLOAD_SIZE_BYTES) {
                     Log.w(TAG, "Download size ($contentLength bytes) exceeds limit (${SyncConstants.MAX_DOWNLOAD_SIZE_BYTES} bytes)")
@@ -178,7 +177,6 @@ class SyncService(private var rootDir: File) {
                             targetFile.parentFile?.mkdirs()
                             try {
                                 FileOutputStream(targetFile).use { output ->
-                                    // Bounded copy to prevent ZIP bombs
                                     val buffer = ByteArray(8192)
                                     var bytesRead: Int
                                     while (zipStream.read(buffer).also { bytesRead = it } != -1) {

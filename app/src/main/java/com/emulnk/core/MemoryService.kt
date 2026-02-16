@@ -1,7 +1,6 @@
 package com.emulnk.core
 
 import android.util.Log
-import com.emulnk.BuildConfig
 import com.emulnk.data.MemoryRepository
 import com.emulnk.model.ConsoleConfig
 import com.emulnk.model.DataPoint
@@ -69,7 +68,7 @@ class MemoryService(private val repository: MemoryRepository) {
                 for (config in consoleConfigs) {
                     repository.setPort(config.port)
                     val idAddr = parseHex(config.idAddress) ?: continue
-                    val rawId = repository.readMemory(idAddr, 6)
+                    val rawId = repository.readMemory(idAddr, config.idSize)
                     val idString = rawId?.decodeToString()?.trim()?.filter { it.isLetterOrDigit() }
 
                     if (idString != null && idString.length >= 4) {
@@ -113,7 +112,7 @@ class MemoryService(private val repository: MemoryRepository) {
                 val gameId = _detectedGameId.value
                 
                 for (point in profile.dataPoints) {
-                    val addressLong = resolveEffectiveAddress(point, gameId) ?: continue
+                    val addressLong = resolveEffectiveAddress(point, gameId, profile.platform) ?: continue
                     val rawData = repository.readMemory(addressLong, point.size)
                     
                     if (rawData != null) {
@@ -145,7 +144,7 @@ class MemoryService(private val repository: MemoryRepository) {
         val profile = currentProfile ?: return
         val gameId = _detectedGameId.value ?: return
         val point = profile.dataPoints.find { it.id == varId } ?: return
-        val addr = resolveEffectiveAddress(point, gameId) ?: return
+        val addr = resolveEffectiveAddress(point, gameId, profile.platform) ?: return
         val buffer = ByteBuffer.allocate(point.size)
         if (point.type.contains("le")) buffer.order(ByteOrder.LITTLE_ENDIAN)
         else buffer.order(ByteOrder.BIG_ENDIAN)
@@ -183,22 +182,33 @@ class MemoryService(private val repository: MemoryRepository) {
         repository.writeMemory(address, data)
     }
 
-    private fun resolveEffectiveAddress(point: DataPoint, gameId: String?): Long? {
-        // Pointer-based: read 4 bytes at pointer address, add offset
-        if (point.pointer != null && point.offset != null) {
+    private fun resolveEffectiveAddress(point: DataPoint, gameId: String?, platform: String? = null): Long? {
+        if (point.pointer != null) {
+            val chain = point.offsets
+                ?: point.offset?.let { listOf(it) }
+                ?: return null
+
+            if (chain.size > MemoryConstants.MAX_POINTER_CHAIN_DEPTH) return null
+
             val ptrAddrStr = resolveFromMap(point.pointer, gameId) ?: return null
             val ptrAddr = parseHex(ptrAddrStr) ?: return null
-            val ptrData = repository.readMemory(ptrAddr, 4)
-            if (ptrData == null) {
-                if (BuildConfig.DEBUG) {
-                    Log.w(TAG, "Failed to read pointer at 0x${ptrAddr.toString(16)}")
+            val order = if (platform == "GCN" || platform == "WII") ByteOrder.BIG_ENDIAN else ByteOrder.LITTLE_ENDIAN
+
+            val ptrData = repository.readMemory(ptrAddr, 4) ?: return null
+            var addr = ByteBuffer.wrap(ptrData).order(order).int.toLong() and 0xFFFFFFFFL
+            if (addr == 0L) return null // Null pointer — entity not loaded
+
+            for (i in chain.indices) {
+                val off = parseHex(chain[i]) ?: return null
+                addr += off
+                if (i < chain.lastIndex) {
+                    // Intermediate: dereference
+                    val next = repository.readMemory(addr, 4) ?: return null
+                    addr = ByteBuffer.wrap(next).order(order).int.toLong() and 0xFFFFFFFFL
+                    if (addr == 0L) return null
                 }
-                return null
             }
-            val baseAddr = ByteBuffer.wrap(ptrData).order(ByteOrder.BIG_ENDIAN).int.toLong() and 0xFFFFFFFFL
-            if (baseAddr == 0L) return null // Null pointer — actor not loaded
-            val offset = parseHex(point.offset) ?: return null
-            return baseAddr + offset
+            return addr
         }
         // Static address
         val addrStr = resolveFromMap(point.addresses, gameId) ?: return null
@@ -245,6 +255,8 @@ class MemoryService(private val repository: MemoryRepository) {
             "u32_be" -> { buffer.order(ByteOrder.BIG_ENDIAN); if (data.size >= 4) buffer.int.toLong() and 0xFFFFFFFFL else 0 }
             "u8" -> if (data.size >= 1) data[0].toInt() and 0xFF else 0
             "float_be" -> { buffer.order(ByteOrder.BIG_ENDIAN); if (data.size >= 4) buffer.float else 0.0f }
+            "u32_le" -> { buffer.order(ByteOrder.LITTLE_ENDIAN); if (data.size >= 4) buffer.int.toLong() and 0xFFFFFFFFL else 0 }
+            "float_le" -> { buffer.order(ByteOrder.LITTLE_ENDIAN); if (data.size >= 4) buffer.float else 0.0f }
             else -> 0
         }
     }

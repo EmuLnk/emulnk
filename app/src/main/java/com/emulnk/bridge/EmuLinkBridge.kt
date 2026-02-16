@@ -197,7 +197,6 @@ class EmuLinkBridge(
         } catch (e: Exception) {
             viewModel.addDebugLog("Sound Error: ${e.message}")
             mediaPlayer.release()
-            // Clean up temp file on error
             if (file.name.startsWith("dev_sound_")) {
                 file.delete()
             }

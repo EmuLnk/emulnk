@@ -9,5 +9,6 @@ data class ConsoleConfig(
     val packageNames: List<String> = emptyList(), // Support multiple packages for forks
     val console: String, // GCN, WII, PSP, etc.
     val port: Int,
-    val idAddress: String
+    val idAddress: String,
+    val idSize: Int = 6
 )
