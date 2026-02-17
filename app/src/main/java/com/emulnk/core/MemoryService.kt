@@ -257,6 +257,7 @@ class MemoryService(private val repository: MemoryRepository) {
             "float_be" -> { buffer.order(ByteOrder.BIG_ENDIAN); if (data.size >= 4) buffer.float else 0.0f }
             "u32_le" -> { buffer.order(ByteOrder.LITTLE_ENDIAN); if (data.size >= 4) buffer.int.toLong() and 0xFFFFFFFFL else 0 }
             "float_le" -> { buffer.order(ByteOrder.LITTLE_ENDIAN); if (data.size >= 4) buffer.float else 0.0f }
+            "bytes" -> android.util.Base64.encodeToString(data, android.util.Base64.NO_WRAP)
             else -> 0
         }
     }
