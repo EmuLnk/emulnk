@@ -22,7 +22,7 @@ object MemoryConstants {
     const val MAX_DETECTION_FAILURES = 3
 
     /** Maximum single read size in bytes */
-    const val MAX_READ_SIZE = 1024
+    const val MAX_READ_SIZE = 2048
 
     /** Maximum valid 32-bit address */
     const val MAX_ADDRESS = 0xFFFFFFFFL
