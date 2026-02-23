@@ -62,10 +62,22 @@ class MemoryRepository(
             }
             val requestPacket = DatagramPacket(buffer.array(), 8, address, port)
             val currentSocket = getSocket()
+
+            // Drain stale packets from previous requests
+            val savedTimeout = currentSocket.soTimeout
+            currentSocket.soTimeout = 1
+            val drain = DatagramPacket(ByteArray(1), 1)
+            repeat(10) {
+                try {
+                    currentSocket.receive(drain)
+                } catch (_: java.net.SocketTimeoutException) { return@repeat }
+            }
+            currentSocket.soTimeout = savedTimeout
+
             currentSocket.send(requestPacket)
 
-            val receiveBuffer = ByteArray(size)
-            val receivePacket = DatagramPacket(receiveBuffer, size)
+            val receiveBuffer = ByteArray(maxOf(size, 256))
+            val receivePacket = DatagramPacket(receiveBuffer, receiveBuffer.size)
             currentSocket.receive(receivePacket)
             
             receivePacket.data.copyOf(receivePacket.length)

@@ -232,7 +232,18 @@ class ConfigManager(private val context: android.content.Context) {
                 return profile.id
             }
         }
-        // Fallback: prefix matching (GameCube/Wii style)
+        // Fallback: prefix match for truncated IDs (e.g. SNES serials)
+        if (gameId.length >= 6) {
+            for (file in files) {
+                val profile = parseProfile(file) ?: continue
+                if (profile.gameIds?.any {
+                    it.replace(" ", "").startsWith(gameId, ignoreCase = true)
+                } == true) {
+                    return profile.id
+                }
+            }
+        }
+        // Fallback: filename prefix matching (GameCube/Wii style)
         val baseName = files.map { it.nameWithoutExtension }
         if (gameId.length >= 3) {
             baseName.find { gameId.startsWith(it, ignoreCase = true) }?.let { return it }

@@ -65,21 +65,37 @@ class MemoryService(private val repository: MemoryRepository) {
         detectionJob = serviceScope.launch {
             while (isActive) {
                 var found = false
+                var bestIdString: String? = null
+                var bestConsole: String? = null
+                var matchedPort: Int? = null
+
                 for (config in consoleConfigs) {
+                    if (matchedPort != null && config.port != matchedPort) continue
+
                     repository.setPort(config.port)
                     val idAddr = parseHex(config.idAddress) ?: continue
                     val rawId = repository.readMemory(idAddr, config.idSize)
-                    val idString = rawId?.decodeToString()?.trim()?.filter { it.isLetterOrDigit() }
+                    val trimmed = rawId?.decodeToString()?.trim()
+                    val idString = trimmed?.filter { it.isLetterOrDigit() }
 
-                    if (idString != null && idString.length >= 4) {
-                        detectionFailures = 0
-                        wasGameDetected = true
-                        found = true
-                        if (idString != _detectedGameId.value || config.console != _detectedConsole.value) {
-                            _detectedGameId.value = idString
-                            _detectedConsole.value = config.console
+                    // Reject garbage reads: most chars should survive the alphanumeric filter
+                    if (idString != null && idString.length >= 4
+                        && (trimmed == null || idString.length >= trimmed.length / 2)) {
+                        if (bestIdString == null || idString.length > bestIdString.length) {
+                            bestIdString = idString
+                            bestConsole = config.console
+                            matchedPort = config.port
                         }
-                        break // Lock onto this console
+                    }
+                }
+
+                if (bestIdString != null) {
+                    found = true
+                    detectionFailures = 0
+                    wasGameDetected = true
+                    if (bestIdString != _detectedGameId.value || bestConsole != _detectedConsole.value) {
+                        _detectedGameId.value = bestIdString
+                        _detectedConsole.value = bestConsole
                     }
                 }
 
