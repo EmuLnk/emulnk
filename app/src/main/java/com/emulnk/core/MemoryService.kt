@@ -75,16 +75,47 @@ class MemoryService(private val repository: MemoryRepository) {
                     repository.setPort(config.port)
                     val idAddr = parseHex(config.idAddress) ?: continue
                     val rawId = repository.readMemory(idAddr, config.idSize)
-                    val trimmed = rawId?.decodeToString()?.trim()
-                    val idString = trimmed?.filter { it.isLetterOrDigit() }
+                    val response = rawId?.decodeToString()?.trim() ?: continue
 
-                    // Reject garbage reads: most chars should survive the alphanumeric filter
-                    if (idString != null && idString.length >= 4
-                        && (trimmed == null || idString.length >= trimmed.length / 2)) {
-                        if (bestIdString == null || idString.length > bestIdString.length) {
-                            bestIdString = idString
-                            bestConsole = config.console
-                            matchedPort = config.port
+                    if (idAddr == MemoryConstants.VIRTUAL_SERIAL_ADDR) {
+                        // Platform-prefix protocol: response may be "SNES:SUPER METROID"
+                        val colonIdx = response.indexOf(':')
+                        if (colonIdx > 0) {
+                            val prefix = response.substring(0, colonIdx)
+                            val serial = response.substring(colonIdx + 1)
+                            if (prefix != config.console) continue
+                            // Relaxed filter: allow hyphens, spaces (PS1 serials, SNES names)
+                            val idString = serial.filter {
+                                it.isLetterOrDigit() || it == '-' || it == ' '
+                            }.trim()
+                            if (idString.length >= 3) {
+                                bestIdString = idString
+                                bestConsole = config.console
+                                matchedPort = config.port
+                                break // Authoritative match
+                            }
+                        } else {
+                            // Legacy fallback: no colon, use longest-match heuristic
+                            val idString = response.filter { it.isLetterOrDigit() }
+                            if (idString.length >= 4
+                                && idString.length >= response.length / 2) {
+                                if (bestIdString == null || idString.length > bestIdString.length) {
+                                    bestIdString = idString
+                                    bestConsole = config.console
+                                    matchedPort = config.port
+                                }
+                            }
+                        }
+                    } else {
+                        // Non-virtual-address entries: unchanged behavior
+                        val idString = response.filter { it.isLetterOrDigit() }
+                        if (idString.length >= 4
+                            && idString.length >= response.length / 2) {
+                            if (bestIdString == null || idString.length > bestIdString.length) {
+                                bestIdString = idString
+                                bestConsole = config.console
+                                matchedPort = config.port
+                            }
                         }
                     }
                 }

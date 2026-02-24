@@ -21,6 +21,9 @@ object MemoryConstants {
     /** Maximum number of consecutive detection failures before giving up */
     const val MAX_DETECTION_FAILURES = 3
 
+    /** Virtual address used for file-based serial extraction (PS1, SNES, Genesis) */
+    const val VIRTUAL_SERIAL_ADDR = 0x00200000L
+
     /** Maximum single read size in bytes */
     const val MAX_READ_SIZE = 2048
 
