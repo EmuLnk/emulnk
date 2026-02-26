@@ -30,7 +30,7 @@ import com.emulnk.ui.screens.GalleryScreen
 import com.emulnk.ui.screens.LauncherScreen
 import com.emulnk.ui.screens.OnboardingScreen
 import com.emulnk.ui.theme.EmuLinkTheme
-import com.emulnk.ui.theme.SurfaceBlack
+import com.emulnk.ui.theme.SurfaceBase
 import com.emulnk.ui.viewmodel.MainViewModel
 import com.google.gson.Gson
 
@@ -128,7 +128,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                Surface(modifier = Modifier.fillMaxSize(), color = SurfaceBlack) {
+                Surface(modifier = Modifier.fillMaxSize(), color = SurfaceBase) {
                     when (currentScreen) {
                         is Screen.Onboarding -> OnboardingScreen(
                             rootPath = rootPath,
@@ -165,6 +165,7 @@ class MainActivity : ComponentActivity() {
                                 themes = availableThemes,
                                 isSyncing = isSyncing,
                                 appConfig = appConfig,
+                                rootPath = rootPath,
                                 onSelectTheme = { vm.selectTheme(it) },
                                 onSetDefaultTheme = { gameId, themeId -> vm.setDefaultThemeForGame(gameId, themeId) },
                                 onOpenGallery = {

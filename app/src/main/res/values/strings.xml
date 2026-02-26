@@ -1,14 +1,14 @@
 <resources>
-    <string name="app_name">EmuLink</string>
+    <string name="app_name">EmuLnk</string>
 
     <!-- Onboarding -->
-    <string name="welcome_title">Welcome to EmuLink</string>
+    <string name="welcome_title">Welcome to EmuLnk</string>
     <string name="onboarding_storage_title">Storage Access</string>
-    <string name="onboarding_storage_desc">EmuLink needs permission to manage themes.</string>
+    <string name="onboarding_storage_desc">EmuLnk needs permission to manage themes.</string>
     <string name="onboarding_grant_permission">Grant Permission</string>
     <string name="onboarding_permission_granted">Permission Granted</string>
     <string name="onboarding_folder_title">Root Folder</string>
-    <string name="onboarding_folder_desc">Choose where EmuLink stores its data.</string>
+    <string name="onboarding_folder_desc">Choose where EmuLnk stores its data.</string>
     <string name="onboarding_select_folder">Select Folder</string>
     <string name="onboarding_change_folder">Change Folder</string>
     <string name="next">Next</string>
@@ -18,7 +18,7 @@
     <string name="preferences_subtitle">You can change these later in Settings.</string>
 
     <!-- Launcher -->
-    <string name="launcher_title">EmuLink Console</string>
+    <string name="launcher_title">EmuLnk</string>
     <string name="detected_game">Detected: %1$s</string>
     <string name="searching_game">Searching for game…</string>
     <string name="dev_mode_active">Dev Mode Active</string>

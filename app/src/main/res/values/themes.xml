@@ -2,4 +2,8 @@
 <resources>
 
     <style name="Theme.EmuLink" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="Theme.EmuLink.Splash" parent="Theme.EmuLink">
+        <item name="android:windowSplashScreenBackground">#FF0E0C1C</item>
+    </style>
 </resources>

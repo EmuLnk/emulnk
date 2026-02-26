@@ -12,7 +12,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
@@ -32,18 +31,18 @@ import com.emulnk.model.GameData
 import com.emulnk.model.ThemeConfig
 import com.emulnk.ui.components.DebugOverlay
 import com.emulnk.ui.components.ThemeSettingsDialog
-import com.emulnk.ui.theme.BrandPurple
+import com.emulnk.ui.theme.*
 import com.emulnk.ui.viewmodel.MainViewModel
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.collectLatest
 import java.io.File
 import java.io.FileInputStream
 
-private const val DEV_MODE_ERROR_HTML = """<html><body style="background:#121212;color:white;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+private const val DEV_MODE_ERROR_HTML = """<html><body style="background:#0E0C1C;color:#EDE9FC;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
                         <div style="text-align:center;padding:32px;">
-                            <h2 style="color:#6A5ACD;">Dev Server Not Configured</h2>
-                            <p style="color:#888;">Set your Dev Server URL in the launcher screen.<br>Example: <code>http://192.168.1.100:5500</code></p>
-                            <p style="color:#666;font-size:12px;">Start a server on your PC:<br><code>python -m http.server 5500</code></p>
+                            <h2 style="color:#B47CFF;">Dev Server Not Configured</h2>
+                            <p style="color:#9E96B8;">Set your Dev Server URL in the launcher screen.<br>Example: <code>http://192.168.1.100:5500</code></p>
+                            <p style="color:#6B6282;font-size:12px;">Start a server on your PC:<br><code>python -m http.server 5500</code></p>
                         </div></body></html>"""
 
 @Composable
@@ -152,9 +151,9 @@ fun DashboardScreen(
                     .align(Alignment.TopStart)
                     .padding(top = 8.dp, start = 8.dp)
                     .alpha(overlayAlpha)
-                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                    .background(SurfaceBase.copy(alpha = 0.7f), CircleShape)
             ) {
-                Icon(painter = painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.exit), tint = Color.White)
+                Icon(painter = painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.exit), tint = TextPrimary)
             }
 
             Column(
@@ -167,12 +166,12 @@ fun DashboardScreen(
             ) {
                 IconButton(
                     onClick = { isMenuExpanded = !isMenuExpanded },
-                    modifier = Modifier.background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                    modifier = Modifier.background(SurfaceBase.copy(alpha = 0.7f), CircleShape)
                 ) {
                     Icon(
                         painter = painterResource(if (isMenuExpanded) R.drawable.ic_close else R.drawable.ic_menu),
                         contentDescription = null,
-                        tint = Color.White
+                        tint = TextPrimary
                     )
                 }
 
@@ -185,14 +184,14 @@ fun DashboardScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        IconButton(onClick = { webViewInstance?.reload() }, modifier = Modifier.background(Color.Black.copy(alpha = 0.6f), CircleShape)) {
-                            Icon(painter = painterResource(R.drawable.ic_sync), contentDescription = stringResource(R.string.reload), tint = Color.White)
+                        IconButton(onClick = { webViewInstance?.reload() }, modifier = Modifier.background(SurfaceBase.copy(alpha = 0.7f), CircleShape)) {
+                            Icon(painter = painterResource(R.drawable.ic_sync), contentDescription = stringResource(R.string.reload), tint = TextPrimary)
                         }
-                        IconButton(onClick = { showSettingsDialog = true }, modifier = Modifier.background(Color.Black.copy(alpha = 0.6f), CircleShape)) {
-                            Icon(painter = painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.settings), tint = Color.White)
+                        IconButton(onClick = { showSettingsDialog = true }, modifier = Modifier.background(SurfaceBase.copy(alpha = 0.7f), CircleShape)) {
+                            Icon(painter = painterResource(R.drawable.ic_settings), contentDescription = stringResource(R.string.settings), tint = TextPrimary)
                         }
-                        IconButton(onClick = { showDebugConsole = !showDebugConsole }, modifier = Modifier.background(Color.Black.copy(alpha = 0.6f), CircleShape)) {
-                            Icon(painter = painterResource(R.drawable.ic_terminal), contentDescription = stringResource(R.string.debug), tint = if (showDebugConsole) BrandPurple else Color.White)
+                        IconButton(onClick = { showDebugConsole = !showDebugConsole }, modifier = Modifier.background(SurfaceBase.copy(alpha = 0.7f), CircleShape)) {
+                            Icon(painter = painterResource(R.drawable.ic_terminal), contentDescription = stringResource(R.string.debug), tint = if (showDebugConsole) BrandPurple else TextPrimary)
                         }
                     }
                 }
@@ -213,7 +212,7 @@ fun DashboardScreen(
         }
 
         if (!uiState.isConnected) {
-            Text(stringResource(R.string.waiting_for_data), modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp), color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+            Text(stringResource(R.string.waiting_for_data), modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp), color = TextSecondary, fontSize = 12.sp)
         }
     }
 }

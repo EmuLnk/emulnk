@@ -41,30 +41,31 @@ fun GalleryScreen(
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
-    Column(modifier = Modifier.fillMaxSize().padding(24.dp).statusBarsPadding()) {
+    Column(modifier = Modifier.fillMaxSize().padding(EmuLnkDimens.spacingXl).statusBarsPadding()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             IconButton(onClick = onBack) {
-                Icon(painter = painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.back), tint = Color.White)
+                Icon(painter = painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.back), tint = TextPrimary)
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(stringResource(R.string.gallery_title), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.width(EmuLnkDimens.spacingSm))
+            Text(stringResource(R.string.gallery_title), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.weight(1f))
             IconButton(onClick = onImportTheme) {
-                Icon(painter = painterResource(R.drawable.ic_download), contentDescription = stringResource(R.string.import_theme), tint = Color.White, modifier = Modifier.size(20.dp))
+                Icon(painter = painterResource(R.drawable.ic_download), contentDescription = stringResource(R.string.import_theme), tint = TextPrimary, modifier = Modifier.size(20.dp))
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(EmuLnkDimens.spacingSm))
 
         TabRow(
             selectedTabIndex = selectedTab,
             containerColor = Color.Transparent,
-            contentColor = BrandPurple
+            contentColor = BrandPurple,
+            divider = { HorizontalDivider(color = DividerColor) }
         ) {
-            Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text(stringResource(R.string.tab_community)) }, selectedContentColor = BrandPurple, unselectedContentColor = Color.Gray)
-            Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text(stringResource(R.string.tab_local)) }, selectedContentColor = BrandPurple, unselectedContentColor = Color.Gray)
+            Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text(stringResource(R.string.tab_community)) }, selectedContentColor = BrandPurple, unselectedContentColor = TextTertiary)
+            Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text(stringResource(R.string.tab_local)) }, selectedContentColor = BrandPurple, unselectedContentColor = TextTertiary)
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(EmuLnkDimens.spacingLg))
 
         when (selectedTab) {
             0 -> CommunityThemeList(
@@ -103,7 +104,7 @@ private fun CommunityThemeList(
             CircularProgressIndicator(color = BrandPurple)
         }
     } else {
-        LazyVerticalGrid(columns = GridCells.Fixed(1), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyVerticalGrid(columns = GridCells.Fixed(1), verticalArrangement = Arrangement.spacedBy(EmuLnkDimens.spacingLg)) {
             items(repoIndex.themes) { theme ->
                 val minVersion = theme.minAppVersion ?: 1
                 val isIncompatible = minVersion > appVersionCode
@@ -114,9 +115,9 @@ private fun CommunityThemeList(
                 val remoteVersion = theme.version ?: "1.0.0"
                 val isOutdated = isInstalled && localVersion != remoteVersion
 
-                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = CardDark), shape = RoundedCornerShape(16.dp)) {
-                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp)).background(SurfaceDarkest), contentAlignment = Alignment.Center) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = SurfaceRaised), shape = RoundedCornerShape(EmuLnkDimens.cornerMd)) {
+                    Row(modifier = Modifier.padding(EmuLnkDimens.spacingLg), verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(80.dp).clip(RoundedCornerShape(EmuLnkDimens.cornerSm)).background(SurfaceBase), contentAlignment = Alignment.Center) {
                             AsyncImage(
                                 model = theme.previewUrl,
                                 contentDescription = null,
@@ -124,10 +125,10 @@ private fun CommunityThemeList(
                                 contentScale = ContentScale.Crop,
                             )
                         }
-                        Spacer(modifier = Modifier.width(16.dp))
+                        Spacer(modifier = Modifier.width(EmuLnkDimens.spacingLg))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(theme.name, fontWeight = FontWeight.Bold, color = Color.White)
-                            Text("v$remoteVersion by ${theme.author}", fontSize = 11.sp, color = Color.Gray)
+                            Text(theme.name, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Text("v$remoteVersion by ${theme.author}", fontSize = 11.sp, color = TextSecondary)
                             if (isIncompatible) {
                                 Text(stringResource(R.string.requires_app_version, minVersion), fontSize = 11.sp, color = StatusError, fontWeight = FontWeight.Bold)
                             } else if (isOutdated) {
@@ -135,16 +136,16 @@ private fun CommunityThemeList(
                             } else if (isInstalled) {
                                 Text(stringResource(R.string.installed), fontSize = 11.sp, color = StatusSuccess, fontWeight = FontWeight.Bold)
                             } else {
-                                Text(theme.description, fontSize = 11.sp, color = Color.LightGray, maxLines = 2)
+                                Text(theme.description, fontSize = 11.sp, color = TextSecondary, maxLines = 2)
                             }
                         }
 
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EmuLnkDimens.spacingSm)) {
                             if (isInstalled) {
                                 IconButton(
                                     onClick = { onDeleteTheme(theme.id) },
                                     enabled = !isSyncing,
-                                    modifier = Modifier.background(Color.Black.copy(alpha = 0.2f), CircleShape)
+                                    modifier = Modifier.background(SurfaceBase.copy(alpha = 0.5f), CircleShape)
                                 ) {
                                     Icon(painter = painterResource(R.drawable.ic_delete), contentDescription = stringResource(R.string.remove), tint = StatusError, modifier = Modifier.size(20.dp))
                                 }
@@ -162,7 +163,7 @@ private fun CommunityThemeList(
                                 enabled = !isSyncing && !isIncompatible,
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = when {
-                                        isIncompatible -> Color.DarkGray
+                                        isIncompatible -> TextTertiary
                                         isOutdated -> BrandPurple
                                         isInstalled -> StatusSuccess
                                         else -> BrandPurple
@@ -173,7 +174,7 @@ private fun CommunityThemeList(
                                 shape = CircleShape
                             ) {
                                 if (isSyncing) {
-                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = TextPrimary, strokeWidth = 2.dp)
                                 } else {
                                     val iconRes = when {
                                         isIncompatible -> R.drawable.ic_upgrade
@@ -181,7 +182,7 @@ private fun CommunityThemeList(
                                         isInstalled -> R.drawable.ic_play_arrow
                                         else -> R.drawable.ic_download
                                     }
-                                    Icon(painter = painterResource(iconRes), contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                    Icon(painter = painterResource(iconRes), contentDescription = null, tint = TextPrimary, modifier = Modifier.size(20.dp))
                                 }
                             }
                         }
@@ -204,32 +205,32 @@ private fun LocalThemeList(
 
     if (localOnlyThemes.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(R.string.no_imported_themes), color = Color.Gray, fontSize = 14.sp, textAlign = TextAlign.Center)
+            Text(stringResource(R.string.no_imported_themes), color = TextSecondary, fontSize = 14.sp, textAlign = TextAlign.Center)
         }
     } else {
-        LazyVerticalGrid(columns = GridCells.Fixed(1), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyVerticalGrid(columns = GridCells.Fixed(1), verticalArrangement = Arrangement.spacedBy(EmuLnkDimens.spacingLg)) {
             items(localOnlyThemes) { theme ->
-                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = CardDark), shape = RoundedCornerShape(16.dp)) {
-                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp)).background(SurfaceDarkest), contentAlignment = Alignment.Center) {
-                            Text(theme.targetProfileId.take(2), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.3f))
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = SurfaceRaised), shape = RoundedCornerShape(EmuLnkDimens.cornerMd)) {
+                    Row(modifier = Modifier.padding(EmuLnkDimens.spacingLg), verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(80.dp).clip(RoundedCornerShape(EmuLnkDimens.cornerSm)).background(SurfaceBase), contentAlignment = Alignment.Center) {
+                            Text(theme.targetProfileId.take(2), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextPrimary.copy(alpha = 0.3f))
                         }
-                        Spacer(modifier = Modifier.width(16.dp))
+                        Spacer(modifier = Modifier.width(EmuLnkDimens.spacingLg))
                         Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(theme.meta.name, fontWeight = FontWeight.Bold, color = Color.White)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(EmuLnkDimens.spacingSm)) {
+                                Text(theme.meta.name, fontWeight = FontWeight.Bold, color = TextPrimary)
                                 Box(modifier = Modifier.background(StatusWarning, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                                    Text(stringResource(R.string.imported), fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text(stringResource(R.string.imported), fontSize = 9.sp, fontWeight = FontWeight.Bold, color = SurfaceBase)
                                 }
                             }
-                            Text("v${theme.meta.version ?: "1.0.0"} by ${theme.meta.author}", fontSize = 11.sp, color = Color.Gray)
+                            Text("v${theme.meta.version ?: "1.0.0"} by ${theme.meta.author}", fontSize = 11.sp, color = TextSecondary)
                             Text("Profile: ${theme.targetProfileId}", fontSize = 11.sp, color = BrandPurple)
                         }
 
                         IconButton(
                             onClick = { onDeleteTheme(theme.id) },
                             enabled = !isSyncing,
-                            modifier = Modifier.background(Color.Black.copy(alpha = 0.2f), CircleShape)
+                            modifier = Modifier.background(SurfaceBase.copy(alpha = 0.5f), CircleShape)
                         ) {
                             Icon(painter = painterResource(R.drawable.ic_delete), contentDescription = stringResource(R.string.delete), tint = StatusError, modifier = Modifier.size(20.dp))
                         }

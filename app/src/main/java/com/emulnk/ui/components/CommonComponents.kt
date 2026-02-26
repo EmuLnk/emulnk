@@ -19,7 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import com.emulnk.ui.theme.*
 import androidx.compose.ui.text.style.TextAlign
@@ -27,46 +27,73 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.text.TextStyle
+import coil.compose.AsyncImage
 import com.emulnk.model.AppConfig
 import com.emulnk.model.ThemeConfig
+import java.io.File
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ThemeCard(config: ThemeConfig, isDefault: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
+fun ThemeCard(config: ThemeConfig, isDefault: Boolean, rootPath: String, onClick: () -> Unit, onLongClick: () -> Unit) {
+    val previewFile = remember(config.id, rootPath) {
+        File(rootPath, "themes/${config.id}/preview.png")
+    }
+    val hasPreview = remember(previewFile) { previewFile.exists() }
+
     Card(
         modifier = Modifier
-            .aspectRatio(0.8f)
+            .fillMaxWidth()
+            .fillMaxHeight()
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
             ),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = if (isDefault) CardPurpleDark else CardDarkAlt),
+        shape = RoundedCornerShape(EmuLnkDimens.cornerLg),
+        colors = CardDefaults.cardColors(containerColor = if (isDefault) SurfaceOverlay else SurfaceElevated),
         border = if (isDefault) androidx.compose.foundation.BorderStroke(2.dp, BrandPurple) else null
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(EmuLnkDimens.spacingLg),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Box(
-                modifier = Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(16.dp)).background(SurfaceMedium),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(EmuLnkDimens.cornerMd))
+                    .background(SurfaceBase),
                 contentAlignment = Alignment.Center
             ) {
+                if (hasPreview) {
+                    AsyncImage(
+                        model = previewFile,
+                        contentDescription = config.meta.name,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Text(
+                        text = config.targetProfileId.take(2),
+                        fontSize = 40.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary.copy(alpha = 0.1f)
+                    )
+                }
                 if (isDefault) {
-                    Box(modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).background(BrandPurple, CircleShape).padding(horizontal = 8.dp, vertical = 4.dp)) {
-                        Text("DEFAULT", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(EmuLnkDimens.spacingSm)
+                            .background(BrandPurple, CircleShape)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text("DEFAULT", color = TextPrimary, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-                Text(
-                    text = config.targetProfileId.take(2),
-                    fontSize = 40.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.1f)
-                )
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(EmuLnkDimens.spacingMd))
             Column {
-                Text(text = config.meta.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(text = config.meta.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
                 Text(text = "Profile: ${config.targetProfileId}", fontSize = 12.sp, color = BrandPurple)
             }
         }
@@ -82,29 +109,29 @@ fun ThemeSettingsDialog(
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = CardDark)
+            modifier = Modifier.fillMaxWidth().padding(EmuLnkDimens.spacingLg),
+            shape = RoundedCornerShape(EmuLnkDimens.cornerLg),
+            colors = CardDefaults.cardColors(containerColor = SurfaceRaised)
         ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text("${theme.meta.name} Settings", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                Spacer(modifier = Modifier.height(16.dp))
+            Column(modifier = Modifier.padding(EmuLnkDimens.spacingXl)) {
+                Text("${theme.meta.name} Settings", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(modifier = Modifier.height(EmuLnkDimens.spacingLg))
                 theme.settings?.forEach { schema ->
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = EmuLnkDimens.spacingSm),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(schema.label, fontSize = 14.sp, color = Color.White)
+                        Text(schema.label, fontSize = 14.sp, color = TextPrimary)
                         if (schema.type == "toggle") {
                             val checked = currentSettings[schema.id] == "true"
                             Switch(checked = checked, onCheckedChange = { onUpdate(schema.id, it.toString()) })
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(EmuLnkDimens.spacingXl))
                 Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = BrandPurple)) {
-                    Text("Close")
+                    Text("Close", color = TextPrimary)
                 }
             }
         }
@@ -117,17 +144,17 @@ fun DebugOverlay(logs: List<String>, modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxWidth(0.8f)
             .height(150.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.8f)),
+        colors = CardDefaults.cardColors(containerColor = SurfaceBase.copy(alpha = 0.9f)),
         border = androidx.compose.foundation.BorderStroke(1.dp, BrandPurple),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(EmuLnkDimens.cornerMd)
     ) {
-        LazyColumn(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        LazyColumn(modifier = Modifier.padding(EmuLnkDimens.spacingMd), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             item {
                 Text("Developer Console", color = BrandPurple, fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.White.copy(alpha = 0.1f))
+                HorizontalDivider(modifier = Modifier.padding(vertical = EmuLnkDimens.spacingSm), color = DividerColor)
             }
             items(logs) { log ->
-                Text(log, color = Color.LightGray, fontSize = 10.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                Text(log, color = TextSecondary, fontSize = 10.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
             }
         }
     }
@@ -137,23 +164,23 @@ fun DebugOverlay(logs: List<String>, modifier: Modifier = Modifier) {
 fun SyncProgressDialog(message: String) {
     Dialog(onDismissRequest = { }) {
         Card(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = CardDark)
+            modifier = Modifier.fillMaxWidth().padding(EmuLnkDimens.spacingLg),
+            shape = RoundedCornerShape(EmuLnkDimens.cornerLg),
+            colors = CardDefaults.cardColors(containerColor = SurfaceRaised)
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier.padding(EmuLnkDimens.spacingXl),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text("Syncing Repository", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                Spacer(modifier = Modifier.height(24.dp))
+                Text("Syncing Repository", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(modifier = Modifier.height(EmuLnkDimens.spacingXl))
                 CircularProgressIndicator(color = BrandPurple)
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(EmuLnkDimens.spacingXl))
                 Text(
                     text = message,
                     fontSize = 14.sp,
-                    color = Color.LightGray,
+                    color = TextSecondary,
                     textAlign = TextAlign.Center
                 )
             }
@@ -179,16 +206,16 @@ fun AppSettingsDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = CardDark)
+            modifier = Modifier.fillMaxWidth().padding(EmuLnkDimens.spacingLg),
+            shape = RoundedCornerShape(EmuLnkDimens.cornerLg),
+            colors = CardDefaults.cardColors(containerColor = SurfaceRaised)
         ) {
             Column(
                 modifier = Modifier
-                    .padding(24.dp)
+                    .padding(EmuLnkDimens.spacingXl)
                     .verticalScroll(rememberScrollState())
             ) {
-                Text("Settings", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Settings", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Row(
@@ -197,30 +224,30 @@ fun AppSettingsDialog(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Auto-boot Theme", fontSize = 14.sp, color = Color.White)
-                        Text("Auto-select theme when game detected", fontSize = 11.sp, color = Color.Gray)
+                        Text("Auto-boot Theme", fontSize = 14.sp, color = TextPrimary)
+                        Text("Auto-select theme when game detected", fontSize = 11.sp, color = TextSecondary)
                     }
                     Switch(checked = appConfig.autoBoot, onCheckedChange = onSetAutoBoot)
                 }
 
-                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = Color.White.copy(alpha = 0.1f))
+                HorizontalDivider(modifier = Modifier.padding(vertical = EmuLnkDimens.spacingMd), color = DividerColor)
 
-                Text("Repository URL", fontSize = 14.sp, color = Color.White)
-                Spacer(modifier = Modifier.height(4.dp))
+                Text("Repository URL", fontSize = 14.sp, color = TextPrimary)
+                Spacer(modifier = Modifier.height(EmuLnkDimens.spacingXs))
                 OutlinedTextField(
                     value = repoUrlText,
                     onValueChange = { repoUrlText = it },
                     modifier = Modifier.fillMaxWidth(),
-                    textStyle = TextStyle(fontSize = 11.sp, color = Color.White),
+                    textStyle = TextStyle(fontSize = 11.sp, color = TextPrimary),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = BrandPurple,
-                        unfocusedBorderColor = Color.Gray
+                        unfocusedBorderColor = TextTertiary
                     )
                 )
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.fillMaxWidth().padding(top = EmuLnkDimens.spacingXs),
+                    horizontalArrangement = Arrangement.spacedBy(EmuLnkDimens.spacingSm)
                 ) {
                     TextButton(onClick = { onSetRepoUrl(repoUrlText) }) {
                         Text("Save", color = BrandPurple, fontSize = 12.sp)
@@ -229,11 +256,11 @@ fun AppSettingsDialog(
                         onResetRepoUrl()
                         repoUrlText = AppConfig().repoUrl
                     }) {
-                        Text("Reset Default", color = Color.Gray, fontSize = 12.sp)
+                        Text("Reset Default", color = TextSecondary, fontSize = 12.sp)
                     }
                 }
 
-                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = Color.White.copy(alpha = 0.1f))
+                HorizontalDivider(modifier = Modifier.padding(vertical = EmuLnkDimens.spacingMd), color = DividerColor)
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -241,7 +268,7 @@ fun AppSettingsDialog(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Root Folder", fontSize = 14.sp, color = Color.White)
+                        Text("Root Folder", fontSize = 14.sp, color = TextPrimary)
                         Text(rootPath, fontSize = 10.sp, color = BrandPurple)
                     }
                     TextButton(onClick = onChangeRootFolder) {
@@ -249,7 +276,7 @@ fun AppSettingsDialog(
                     }
                 }
 
-                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = Color.White.copy(alpha = 0.1f))
+                HorizontalDivider(modifier = Modifier.padding(vertical = EmuLnkDimens.spacingMd), color = DividerColor)
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -257,34 +284,34 @@ fun AppSettingsDialog(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Developer Live-Link", fontSize = 14.sp, color = Color.White)
-                        Text("Load themes from a dev server", fontSize = 11.sp, color = Color.Gray)
+                        Text("Developer Live-Link", fontSize = 14.sp, color = TextPrimary)
+                        Text("Load themes from a dev server", fontSize = 11.sp, color = TextSecondary)
                     }
                     Switch(checked = appConfig.devMode, onCheckedChange = onSetDevMode)
                 }
                 if (appConfig.devMode) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(EmuLnkDimens.spacingSm))
                     OutlinedTextField(
                         value = devUrlText,
                         onValueChange = {
                             devUrlText = it
                             onSetDevUrl(it)
                         },
-                        label = { Text("Dev Server URL") },
+                        label = { Text("Dev Server URL", color = TextSecondary) },
                         modifier = Modifier.fillMaxWidth(),
-                        textStyle = TextStyle(fontSize = 12.sp, color = Color.White),
+                        textStyle = TextStyle(fontSize = 12.sp, color = TextPrimary),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = BrandPurple,
-                            unfocusedBorderColor = Color.Gray
+                            unfocusedBorderColor = TextTertiary
                         )
                     )
-                    Text("e.g. http://192.168.x.x:5500", fontSize = 10.sp, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
+                    Text("e.g. http://192.168.x.x:5500", fontSize = 10.sp, color = TextTertiary, modifier = Modifier.padding(top = EmuLnkDimens.spacingXs))
                 }
 
-                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = Color.White.copy(alpha = 0.1f))
+                HorizontalDivider(modifier = Modifier.padding(vertical = EmuLnkDimens.spacingMd), color = DividerColor)
 
-                Text("App Version: v$appVersionCode", fontSize = 12.sp, color = Color.Gray)
+                Text("App Version: v$appVersionCode", fontSize = 12.sp, color = TextTertiary)
 
                 Spacer(modifier = Modifier.height(20.dp))
                 Button(
@@ -292,7 +319,7 @@ fun AppSettingsDialog(
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = BrandPurple)
                 ) {
-                    Text("Close")
+                    Text("Close", color = TextPrimary)
                 }
             }
         }
