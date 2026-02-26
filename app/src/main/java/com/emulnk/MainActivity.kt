@@ -234,13 +234,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        if (isFinishing) {
-            vm.cleanup()
-        }
-    }
-
     private fun requestStoragePermission() {
         try {
             val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {

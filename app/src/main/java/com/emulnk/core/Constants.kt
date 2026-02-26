@@ -40,6 +40,9 @@ object UiConstants {
 
     /** Auto-hide overlay delay in milliseconds */
     const val AUTO_HIDE_OVERLAY_DELAY_MS = 4000L
+
+    /** Delay before retrying theme updateData injection in milliseconds */
+    const val THEME_INJECT_RETRY_DELAY_MS = 300L
 }
 
 object TelemetryConstants {

@@ -141,7 +141,7 @@ class ConfigManager(private val context: android.content.Context) {
             ConsoleConfig(
                 id = "dolphin_gcn",
                 name = "Dolphin (GameCube)",
-                packageNames = listOf("org.dolphinemu.dolphinemu", "org.dolphinemu.dolphinmmjr"),
+                packageNames = listOf("org.emulnk.dolphinlnk"),
                 console = "GCN",
                 port = 55355,
                 idAddress = "0x80000000"
@@ -149,7 +149,7 @@ class ConfigManager(private val context: android.content.Context) {
             ConsoleConfig(
                 id = "dolphin_wii",
                 name = "Dolphin (Wii)",
-                packageNames = listOf("org.dolphinemu.dolphinemu", "org.dolphinemu.dolphinmmjr"),
+                packageNames = listOf("org.emulnk.dolphinlnk"),
                 console = "WII",
                 port = 55356,
                 idAddress = "0x80000000"
@@ -212,7 +212,11 @@ class ConfigManager(private val context: android.content.Context) {
             Log.w(TAG, "theme.json missing in ${folder.name}")
             return null
         }
-        
+        if (configFile.length() > 1_000_000) {
+            Log.e(TAG, "theme.json too large, skipping: ${folder.name} (${configFile.length()} bytes)")
+            return null
+        }
+
         return try {
             val json = configFile.readText()
             gson.fromJson(json, ThemeConfig::class.java).copy(id = folder.name)
@@ -287,6 +291,10 @@ class ConfigManager(private val context: android.content.Context) {
     }
 
     private fun parseProfile(file: File): ProfileConfig? {
+        if (file.length() > 1_000_000) {
+            Log.e(TAG, "Profile too large, skipping: ${file.name} (${file.length()} bytes)")
+            return null
+        }
         return try {
             gson.fromJson(file.readText(), ProfileConfig::class.java)
         } catch (e: Exception) {

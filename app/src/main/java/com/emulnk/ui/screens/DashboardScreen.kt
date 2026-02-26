@@ -303,7 +303,7 @@ private fun DashboardWebView(
                                 android.util.Log.d("EmuLink", "Initial data injection result: $result")
                             }
                             if (result == "\"MISSING\"") {
-                                view.postDelayed({
+                                view?.postDelayed({
                                     view.evaluateJavascript(js) { retryResult ->
                                         if (BuildConfig.DEBUG) {
                                             android.util.Log.d("EmuLink", "Retry data injection result: $retryResult")
@@ -312,7 +312,7 @@ private fun DashboardWebView(
                                             vm.addDebugLog("Warning: updateData function missing in theme after retry")
                                         }
                                     }
-                                }, 300)
+                                }, UiConstants.THEME_INJECT_RETRY_DELAY_MS)
                             }
                         }
 

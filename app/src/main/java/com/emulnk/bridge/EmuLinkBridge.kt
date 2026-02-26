@@ -177,9 +177,6 @@ class EmuLinkBridge(
     private fun playLocalSound(file: File) {
         val mediaPlayer = android.media.MediaPlayer()
         try {
-            mediaPlayer.setDataSource(file.absolutePath)
-            mediaPlayer.prepare()
-            mediaPlayer.start()
             mediaPlayer.setOnCompletionListener {
                 it.release()
                 // Clean up temp dev mode sound files
@@ -194,6 +191,9 @@ class EmuLinkBridge(
                 }
                 true
             }
+            mediaPlayer.setDataSource(file.absolutePath)
+            mediaPlayer.prepare()
+            mediaPlayer.start()
         } catch (e: Exception) {
             viewModel.addDebugLog("Sound Error: ${e.message}")
             mediaPlayer.release()

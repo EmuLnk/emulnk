@@ -568,13 +568,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     fun runMacro(macroId: String) = memoryService.runMacro(macroId) { addDebugLog(it) }
 
-    fun cleanup() {
-        memoryService.close()
-        syncService.close()
-    }
-
     override fun onCleared() {
         super.onCleared()
         memoryService.close()
+        syncService.close()
     }
 }
