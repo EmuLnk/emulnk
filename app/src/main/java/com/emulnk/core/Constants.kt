@@ -32,6 +32,12 @@ object MemoryConstants {
 
     /** Maximum depth for multi-level pointer chains */
     const val MAX_POINTER_CHAIN_DEPTH = 10
+
+    /** EMLK discovery handshake magic bytes ("EMLK") */
+    val IDENTIFY_MAGIC = byteArrayOf(0x45, 0x4D, 0x4C, 0x4B)
+
+    /** UDP timeout for EMLK identify requests in milliseconds */
+    const val IDENTIFY_TIMEOUT_MS = 300
 }
 
 object UiConstants {

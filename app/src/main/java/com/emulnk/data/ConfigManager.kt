@@ -144,15 +144,17 @@ class ConfigManager(private val context: android.content.Context) {
                 packageNames = listOf("org.emulnk.dolphinlnk"),
                 console = "GCN",
                 port = 55355,
-                idAddress = "0x80000000"
+                idAddress = "0x80000000",
+                emulatorId = "dolphin"
             ),
             ConsoleConfig(
                 id = "dolphin_wii",
                 name = "Dolphin (Wii)",
                 packageNames = listOf("org.emulnk.dolphinlnk"),
                 console = "WII",
-                port = 55356,
-                idAddress = "0x80000000"
+                port = 55355,
+                idAddress = "0x80000000",
+                emulatorId = "dolphin"
             )
         )
         if (save) {

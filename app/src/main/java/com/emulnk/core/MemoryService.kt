@@ -1,6 +1,7 @@
 package com.emulnk.core
 
 import android.util.Log
+import com.emulnk.BuildConfig
 import com.emulnk.data.MemoryRepository
 import com.emulnk.model.ConsoleConfig
 import com.emulnk.model.DataPoint
@@ -12,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Handles detection and polling loops for emulator memory.
@@ -34,6 +36,7 @@ class MemoryService(private val repository: MemoryRepository) {
     private var pollingJob: Job? = null
     private var detectionFailures = 0
     private var wasGameDetected = false
+    private val portIdentity = ConcurrentHashMap<Int, String>()
 
     companion object {
         private const val TAG = "MemoryService"
@@ -47,6 +50,7 @@ class MemoryService(private val repository: MemoryRepository) {
     fun stop() {
         detectionJob?.cancel()
         pollingJob?.cancel()
+        portIdentity.clear()
     }
 
     fun close() {
@@ -69,12 +73,32 @@ class MemoryService(private val repository: MemoryRepository) {
                 var bestConsole: String? = null
                 var matchedPort: Int? = null
 
+                // Phase 1 — IDENTIFY: probe each unique port for EMLK handshake
+                val portsToProbe = consoleConfigs.map { it.port }.distinct()
+                    .filter { !portIdentity.containsKey(it) }
+                for (port in portsToProbe) {
+                    repository.setPort(port)
+                    val identity = repository.identify() ?: ""
+                    portIdentity[port] = identity
+                    if (BuildConfig.DEBUG) {
+                        Log.d(TAG, "Port $port: identified as ${if (identity.isEmpty()) "null" else "\"$identity\""}")
+                    }
+                }
+
+                // Phase 2 — Game detection: only probe configs that match port identity
                 for (config in consoleConfigs) {
                     if (matchedPort != null && config.port != matchedPort) continue
 
+                    if (!config.emulatorId.isNullOrEmpty()) {
+                        val identity = portIdentity[config.port]
+                        // Only skip if we got a positive ID that doesn't match
+                        if (!identity.isNullOrEmpty() && !identity.equals(config.emulatorId, ignoreCase = true)) continue
+                    }
+
                     repository.setPort(config.port)
                     val idAddr = parseHex(config.idAddress) ?: continue
-                    val rawId = repository.readMemory(idAddr, config.idSize)
+                    val idSize = if (config.idSize > 0) config.idSize else 6
+                    val rawId = repository.readMemory(idAddr, idSize)
                     val response = rawId?.decodeToString()?.trim() ?: continue
 
                     if (idAddr == MemoryConstants.VIRTUAL_SERIAL_ADDR) {
@@ -133,6 +157,7 @@ class MemoryService(private val repository: MemoryRepository) {
                 if (!found) {
                     detectionFailures++
                     if (detectionFailures >= MemoryConstants.MAX_DETECTION_FAILURES) {
+                        portIdentity.clear() // Force re-identification on next cycle
                         _detectedGameId.value = null
                         _detectedConsole.value = null
                         _uiState.value = _uiState.value.copy(isConnected = false)

@@ -44,6 +44,16 @@ class MemoryRepository(
         return s
     }
 
+    private fun drainStalePackets(sock: DatagramSocket) {
+        val saved = sock.soTimeout
+        sock.soTimeout = 1
+        val drain = DatagramPacket(ByteArray(1), 1)
+        repeat(10) {
+            try { sock.receive(drain) } catch (_: java.net.SocketTimeoutException) { return }
+        }
+        sock.soTimeout = saved
+    }
+
     @Synchronized
     fun readMemory(memoryAddress: Long, size: Int): ByteArray? {
         if (memoryAddress < 0 || memoryAddress > MemoryConstants.MAX_ADDRESS) {
@@ -63,29 +73,50 @@ class MemoryRepository(
             val requestPacket = DatagramPacket(buffer.array(), 8, address, port)
             val currentSocket = getSocket()
 
-            // Drain stale packets from previous requests
-            val savedTimeout = currentSocket.soTimeout
-            currentSocket.soTimeout = 1
-            val drain = DatagramPacket(ByteArray(1), 1)
-            repeat(10) {
-                try {
-                    currentSocket.receive(drain)
-                } catch (_: java.net.SocketTimeoutException) { return@repeat }
-            }
-            currentSocket.soTimeout = savedTimeout
+            drainStalePackets(currentSocket)
 
             currentSocket.send(requestPacket)
 
             val receiveBuffer = ByteArray(maxOf(size, 256))
             val receivePacket = DatagramPacket(receiveBuffer, receiveBuffer.size)
             currentSocket.receive(receivePacket)
-            
+
             receivePacket.data.copyOf(receivePacket.length)
         } catch (e: Exception) {
             if (BuildConfig.DEBUG) {
                 Log.e(TAG, "UDP read failed at 0x${memoryAddress.toString(16)}: ${e.message}", e)
             }
             null
+        }
+    }
+
+    @Synchronized
+    fun identify(): String? {
+        val currentSocket = getSocket()
+        val savedTimeout = currentSocket.soTimeout
+        return try {
+            currentSocket.soTimeout = MemoryConstants.IDENTIFY_TIMEOUT_MS
+            drainStalePackets(currentSocket)
+
+            val requestPacket = DatagramPacket(
+                MemoryConstants.IDENTIFY_MAGIC, MemoryConstants.IDENTIFY_MAGIC.size, address, port
+            )
+            currentSocket.send(requestPacket)
+
+            val receiveBuffer = ByteArray(256)
+            val receivePacket = DatagramPacket(receiveBuffer, receiveBuffer.size)
+            currentSocket.receive(receivePacket)
+
+            val response = receivePacket.data.copyOf(receivePacket.length)
+                .decodeToString().trim().lowercase()
+            if (response.isNotEmpty()) response else null
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "identify() on port $port: ${e.message}")
+            }
+            null
+        } finally {
+            currentSocket.soTimeout = savedTimeout
         }
     }
 
