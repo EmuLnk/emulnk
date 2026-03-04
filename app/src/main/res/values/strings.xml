@@ -77,4 +77,5 @@
     <string name="overlay_edit_layout">Edit Layout</string>
     <string name="overlay_done">Done</string>
     <string name="overlay_reset">Reset</string>
+    <string name="overlay_all_hidden">All widgets hidden. Tap indicator to edit.</string>
 </resources>

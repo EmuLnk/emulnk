@@ -26,6 +26,7 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import com.emulnk.BuildConfig
 import com.emulnk.MainActivity
 import com.emulnk.R
@@ -83,6 +84,7 @@ class OverlayService : Service() {
     private var controlsBar: View? = null
     private var controlsLabel: TextView? = null
     private var selectedWidget: WidgetWindow? = null
+    private var recoveryPill: View? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -138,6 +140,11 @@ class OverlayService : Service() {
         for (widget in widgets) {
             val layoutState = savedLayout?.widgets?.get(widget.id)
             createWidgetWindow(config, widget, layoutState)
+        }
+
+        // Show recovery pill if saved layout has all widgets disabled
+        if (widgetViews.values.all { !it.enabled }) {
+            showRecoveryPill()
         }
 
         startDataCollection()
@@ -395,6 +402,7 @@ class OverlayService : Service() {
     fun enterEditMode() {
         if (isEditMode) return
         isEditMode = true
+        removeRecoveryPill()
         selectedWidget = widgetViews.values.firstOrNull()
 
         // Add scrim backdrop
@@ -403,12 +411,16 @@ class OverlayService : Service() {
         }
         val scrimParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
+            getRealScreenHeight(),
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
-        )
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+        }
         try {
             windowManager.addView(scrim, scrimParams)
             scrimView = scrim
@@ -492,6 +504,11 @@ class OverlayService : Service() {
         }
 
         saveCurrentLayout()
+
+        // If all widgets are disabled, show recovery pill so user can re-enter edit mode
+        if (widgetViews.values.all { !it.enabled }) {
+            showRecoveryPill()
+        }
     }
 
     private fun updateWidgetEditVisual(ww: WidgetWindow, isSelected: Boolean) {
@@ -538,7 +555,7 @@ class OverlayService : Service() {
                 if (!ww.widget.resizable) return false
                 val factor = detector.scaleFactor
                 val screenWidth = resources.displayMetrics.widthPixels
-                val screenHeight = resources.displayMetrics.heightPixels
+                val screenHeight = getRealScreenHeight()
                 ww.params.width = (ww.params.width * factor).toInt().coerceIn(minWidthPx, screenWidth)
                 ww.params.height = (ww.params.height * factor).toInt().coerceIn(minHeightPx, screenHeight)
                 clampToBounds(ww)
@@ -581,6 +598,8 @@ class OverlayService : Service() {
                     true
                 }
                 MotionEvent.ACTION_UP -> {
+                    val wasAlreadySelected = (selectedWidget == ww)
+
                     // Update selection
                     val prevSelected = selectedWidget
                     selectedWidget = ww
@@ -590,7 +609,8 @@ class OverlayService : Service() {
                     updateWidgetEditVisual(ww, true)
                     updateControlsLabel()
 
-                    if (!isDragging) {
+                    // Only toggle if tapped (not dragged) on already-selected widget
+                    if (!isDragging && wasAlreadySelected) {
                         toggleWidgetEnabled(ww)
                     }
                     true
@@ -600,9 +620,20 @@ class OverlayService : Service() {
         }
     }
 
+    private fun getRealScreenHeight(): Int {
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            windowManager.maximumWindowMetrics.bounds.height()
+        } else {
+            val size = android.graphics.Point()
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.getRealSize(size)
+            size.y
+        }
+    }
+
     private fun clampToBounds(ww: WidgetWindow) {
         val screenWidth = resources.displayMetrics.widthPixels
-        val screenHeight = resources.displayMetrics.heightPixels
+        val screenHeight = getRealScreenHeight()
         ww.params.x = ww.params.x.coerceIn(0, maxOf(0, screenWidth - ww.params.width))
         ww.params.y = ww.params.y.coerceIn(0, maxOf(0, screenHeight - ww.params.height))
     }
@@ -611,7 +642,7 @@ class OverlayService : Service() {
         val density = resources.displayMetrics.density
         val snapPx = (OverlayConstants.SNAP_THRESHOLD_DP * density).toInt()
         val screenWidth = resources.displayMetrics.widthPixels
-        val screenHeight = resources.displayMetrics.heightPixels
+        val screenHeight = getRealScreenHeight()
 
         if (ww.params.x in 1..snapPx) ww.params.x = 0
         if (ww.params.y in 1..snapPx) ww.params.y = 0
@@ -651,7 +682,7 @@ class OverlayService : Service() {
             background = pillBg
         }
 
-        // Widget label
+        // Widget label (also serves as drag handle for the controls bar)
         val label = TextView(this).apply {
             text = selectedWidget?.widget?.label ?: ""
             setTextColor(0xFFEDE9FC.toInt()) // TextPrimary
@@ -659,6 +690,49 @@ class OverlayService : Service() {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
         controlsLabel = label
+
+        // Drag handling for controls bar via the label
+        var controlsInitialX = 0
+        var controlsInitialY = 0
+        var controlsInitialTouchX = 0f
+        var controlsInitialTouchY = 0f
+        var controlsDragging = false
+
+        label.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    val lp = controlsBar?.layoutParams as? WindowManager.LayoutParams
+                        ?: return@setOnTouchListener false
+                    controlsInitialX = lp.x
+                    controlsInitialY = lp.y
+                    controlsInitialTouchX = event.rawX
+                    controlsInitialTouchY = event.rawY
+                    controlsDragging = false
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - controlsInitialTouchX
+                    val dy = event.rawY - controlsInitialTouchY
+                    if (!controlsDragging &&
+                        (kotlin.math.abs(dx) > OverlayConstants.DRAG_THRESHOLD_PX ||
+                         kotlin.math.abs(dy) > OverlayConstants.DRAG_THRESHOLD_PX)) {
+                        controlsDragging = true
+                    }
+                    if (controlsDragging) {
+                        val lp = controlsBar?.layoutParams as? WindowManager.LayoutParams
+                            ?: return@setOnTouchListener true
+                        lp.x = controlsInitialX + dx.toInt()
+                        lp.y = controlsInitialY - dy.toInt() // BOTTOM gravity: positive y = up
+                        try {
+                            windowManager.updateViewLayout(controlsBar, lp)
+                        } catch (_: Exception) {}
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> true
+                else -> false
+            }
+        }
 
         // Reset button
         val resetButton = TextView(this).apply {
@@ -798,7 +872,61 @@ class OverlayService : Service() {
             .build()
     }
 
+    @SuppressLint("ClickableViewAccessibility")
+    private fun showRecoveryPill() {
+        if (recoveryPill != null) return
+        val density = resources.displayMetrics.density
+        val widthPx = (40 * density).toInt()
+        val heightPx = (24 * density).toInt()
+
+        val pillBg = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = 12 * density
+            setColor(0xFF1E1A3A.toInt())
+            setStroke((1 * density).toInt(), 0xFF9E96B8.toInt())
+        }
+
+        val pill = TextView(this).apply {
+            text = "\u22EF" // midline horizontal ellipsis
+            setTextColor(0xFFEDE9FC.toInt())
+            textSize = 14f
+            gravity = Gravity.CENTER
+            background = pillBg
+            alpha = 0.6f
+            setOnClickListener { enterEditMode() }
+        }
+
+        val params = WindowManager.LayoutParams(
+            widthPx,
+            heightPx,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.END
+            x = (8 * density).toInt()
+            y = (8 * density).toInt()
+        }
+
+        try {
+            windowManager.addView(pill, params)
+            recoveryPill = pill
+            Toast.makeText(this, R.string.overlay_all_hidden, Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to show recovery pill", e)
+        }
+    }
+
+    private fun removeRecoveryPill() {
+        recoveryPill?.let {
+            try { windowManager.removeView(it) } catch (_: Exception) {}
+            recoveryPill = null
+        }
+    }
+
     private fun removeAllWidgets() {
+        removeRecoveryPill()
+
         controlsBar?.let {
             try { windowManager.removeView(it) } catch (_: Exception) {}
             controlsBar = null
