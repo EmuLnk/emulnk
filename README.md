@@ -38,6 +38,7 @@ EmuLnk connects to emulators over UDP, reads game memory in real time, and rende
 | **RetroArch** | SNES, Genesis, NES, GB, GBC, GBA, PS1, N64 | [`retroarch-lnk`](https://github.com/EmuLnk/retroarch-lnk) |
 | **Dolphin** | GameCube, Wii | [`dolphin-lnk`](https://github.com/EmuLnk/dolphin-lnk) |
 | **PPSSPP** | PSP | [`ppsspp-lnk`](https://github.com/EmuLnk/ppsspp-lnk) |
+| **melonDS** | NDS, DSi | [`melonds-lnk`](https://github.com/EmuLnk/melonDS-lnk) |
 
 > [!NOTE]
 > Each emulator fork adds the EmuLnk binary UDP protocol. Install the fork alongside EmuLnk to use it.
@@ -115,6 +116,7 @@ Browse community themes and profiles in [`emulnk-repo`](https://github.com/EmuLn
 | [`retroarch-lnk`](https://github.com/EmuLnk/retroarch-lnk) | RetroArch fork with UDP protocol |
 | [`dolphin-lnk`](https://github.com/EmuLnk/dolphin-lnk) | Dolphin fork with UDP protocol |
 | [`ppsspp-lnk`](https://github.com/EmuLnk/ppsspp-lnk) | PPSSPP fork with UDP protocol |
+| [`melonds-lnk`](https://github.com/EmuLnk/melonDS-lnk) | melonDS fork with UDP protocol |
 
 ## License
 
