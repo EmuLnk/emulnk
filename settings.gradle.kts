@@ -21,5 +21,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "EmuLink"
-include(":app")
+include(":app", ":core")
  

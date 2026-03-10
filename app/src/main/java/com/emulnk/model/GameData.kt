@@ -5,7 +5,9 @@ data class GameData(
     val values: Map<String, Any> = emptyMap(),
     val raw: Map<String, Any> = emptyMap(),
     val settings: Map<String, String> = emptyMap(),
-    val system: SystemInfo = SystemInfo()
+    val system: SystemInfo = SystemInfo(),
+    val confidence: String? = null,
+    val gameHash: String? = null
 )
 
 data class SystemInfo(

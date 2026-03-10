@@ -26,6 +26,7 @@ import com.emulnk.model.ThemeConfig
 import com.emulnk.model.ThemeType
 import com.emulnk.model.resolvedType
 import com.emulnk.model.SavedOverlayConfig
+import com.emulnk.model.MatchConfidence
 import com.emulnk.ui.components.PairingBottomSheet
 import com.emulnk.ui.components.ThemeCard
 import com.emulnk.ui.theme.*
@@ -62,7 +63,10 @@ fun LauncherScreen(
     onDeleteOverlay: (String) -> Unit = {},
     onEditOverlay: (ThemeConfig) -> Unit = {},
     showBuilderButton: Boolean = false,
-    onLaunchBuilder: () -> Unit = {}
+    onLaunchBuilder: () -> Unit = {},
+    confidence: MatchConfidence = MatchConfidence.MATCHED,
+    gameHash: String? = null,
+    isDevMode: Boolean = false
 ) {
     var showBundleSheet by remember { mutableStateOf(false) }
     var pendingTheme by remember { mutableStateOf<ThemeConfig?>(null) }
@@ -118,22 +122,50 @@ fun LauncherScreen(
             }
         }
 
-        // Status pill
+        // Status pill + confidence badge
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .padding(vertical = EmuLnkDimens.spacingXs)
-                .background(
-                    color = if (detectedGameId != null) StatusSuccess.copy(alpha = 0.15f) else StatusError.copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(EmuLnkDimens.cornerSm)
-                )
-                .padding(horizontal = EmuLnkDimens.spacingMd, vertical = EmuLnkDimens.spacingXs)
+            horizontalArrangement = Arrangement.spacedBy(EmuLnkDimens.spacingSm),
+            modifier = Modifier.padding(vertical = EmuLnkDimens.spacingXs)
         ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .background(
+                        color = if (detectedGameId != null) StatusSuccess.copy(alpha = 0.15f) else StatusError.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(EmuLnkDimens.cornerSm)
+                    )
+                    .padding(horizontal = EmuLnkDimens.spacingMd, vertical = EmuLnkDimens.spacingXs)
+            ) {
+                Text(
+                    text = if (detectedGameId != null) stringResource(R.string.detected_game, displayName ?: detectedGameId) else stringResource(R.string.searching_game),
+                    fontSize = 12.sp,
+                    color = if (detectedGameId != null) StatusSuccess else TextSecondary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            if (detectedGameId != null && confidence != MatchConfidence.MATCHED) {
+                val badgeColor = if (confidence == MatchConfidence.FALLBACK) StatusWarning else StatusError
+                val badgeText = if (confidence == MatchConfidence.FALLBACK) "Unknown ROM variant" else "Unsupported game"
+                Text(
+                    text = badgeText,
+                    fontSize = 10.sp,
+                    color = badgeColor,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .background(badgeColor.copy(alpha = 0.15f), RoundedCornerShape(EmuLnkDimens.cornerSm))
+                        .padding(horizontal = EmuLnkDimens.spacingSm, vertical = 2.dp)
+                )
+            }
+        }
+
+        if (isDevMode && gameHash != null) {
             Text(
-                text = if (detectedGameId != null) stringResource(R.string.detected_game, displayName ?: detectedGameId) else stringResource(R.string.searching_game),
-                fontSize = 12.sp,
-                color = if (detectedGameId != null) StatusSuccess else TextSecondary,
-                fontWeight = FontWeight.SemiBold
+                text = "Hash: $gameHash",
+                fontSize = 10.sp,
+                color = TextTertiary,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                modifier = Modifier.padding(top = EmuLnkDimens.spacingXs)
             )
         }
 

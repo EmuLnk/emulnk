@@ -3,23 +3,28 @@ package com.emulnk.core
 import android.util.Log
 import com.emulnk.BuildConfig
 import com.emulnk.data.MemoryRepository
+import com.emulnk.core.math.MathEngine
+import com.emulnk.core.model.DataPoint
+import com.emulnk.core.model.IdentityResponse
+import com.emulnk.model.MatchConfidence
+import com.emulnk.core.model.ProfileConfig
+import com.emulnk.core.resolver.AddressResolver
 import com.emulnk.model.ConsoleConfig
-import com.emulnk.model.DataPoint
+import com.google.gson.Gson
 import com.emulnk.model.GameData
-import com.emulnk.model.ProfileConfig
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Handles detection and polling loops for emulator memory.
  */
 class MemoryService(private val repository: MemoryRepository) {
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val gson = Gson()
 
     private val _uiState = MutableStateFlow(GameData())
     val uiState: StateFlow<GameData> = _uiState
@@ -30,17 +35,38 @@ class MemoryService(private val repository: MemoryRepository) {
     private val _detectedConsole = MutableStateFlow<String?>(null)
     val detectedConsole: StateFlow<String?> = _detectedConsole
 
+    private val _matchConfidence = MutableStateFlow<MatchConfidence?>(null)
+    val matchConfidence: StateFlow<MatchConfidence?> = _matchConfidence
+
+    private val _detectedGameHash = MutableStateFlow<String?>(null)
+    val detectedGameHash: StateFlow<String?> = _detectedGameHash
+
     private var consoleConfigs: List<ConsoleConfig> = emptyList()
     private var currentProfile: ProfileConfig? = null
+    private var currentConfidence: MatchConfidence? = null
     private var detectionJob: Job? = null
     private var pollingJob: Job? = null
     private var detectionFailures = 0
     private var wasGameDetected = false
-    private val portIdentity = ConcurrentHashMap<Int, String>()
+    private var activePort: Int? = null
+
+    /** Address resolver using the repository as its memory reader. */
+    private val addressResolver = AddressResolver(
+        memoryReader = object : AddressResolver.MemoryReader {
+            override fun read(address: Long, size: Int): ByteArray? {
+                return repository.readMemory(address, size)
+            }
+        },
+        maxPointerChainDepth = MemoryConstants.MAX_POINTER_CHAIN_DEPTH
+    )
 
     companion object {
         private const val TAG = "MemoryService"
     }
+
+    private fun byteOrderFor(platform: String?): ByteOrder =
+        if (platform == "GCN" || platform == "WII") ByteOrder.BIG_ENDIAN
+        else ByteOrder.LITTLE_ENDIAN
 
     fun start(configs: List<ConsoleConfig>) {
         this.consoleConfigs = configs
@@ -50,7 +76,7 @@ class MemoryService(private val repository: MemoryRepository) {
     fun stop() {
         detectionJob?.cancel()
         pollingJob?.cancel()
-        portIdentity.clear()
+        activePort = null
     }
 
     fun close() {
@@ -69,133 +95,74 @@ class MemoryService(private val repository: MemoryRepository) {
         detectionJob = serviceScope.launch {
             while (isActive) {
                 var found = false
-                var bestIdString: String? = null
-                var bestConsole: String? = null
-                var matchedPort: Int? = null
+                val allPorts = consoleConfigs.map { it.port }.distinct()
 
-                // Phase 1 IDENTIFY: probe each unique port for EMLK handshake
-                val portsToProbe = consoleConfigs.map { it.port }.distinct()
-                    .filter { !portIdentity.containsKey(it) }
-                for (port in portsToProbe) {
+                // Try active port first, then remaining ports
+                val orderedPorts = activePort?.let { ap ->
+                    listOf(ap) + allPorts.filter { it != ap }
+                } ?: allPorts
+
+                for (port in orderedPorts) {
                     repository.setPort(port)
-                    val identity = repository.identify() ?: ""
-                    portIdentity[port] = identity
-                    if (BuildConfig.DEBUG) {
-                        Log.d(TAG, "Port $port: identified as ${if (identity.isEmpty()) "null" else "\"$identity\""}")
-                    }
-                }
-
-                // Phase 2 Game detection: only probe configs that match port identity
-                // Cache virtual serial reads per port to avoid redundant UDP round-trips
-                val virtualSerialCache = mutableMapOf<Int, String?>()
-
-                for (config in consoleConfigs) {
-                    if (matchedPort != null && config.port != matchedPort) continue
-
-                    if (!config.emulatorId.isNullOrEmpty()) {
-                        val identity = portIdentity[config.port]
-                        // Only skip if we got a positive ID that doesn't match
-                        if (!identity.isNullOrEmpty() && !identity.equals(config.emulatorId, ignoreCase = true)) continue
-                    }
-
-                    val idAddr = parseHex(config.idAddress) ?: continue
-                    val idSize = if (config.idSize > 0) config.idSize else 6
-
-                    if (idAddr == MemoryConstants.VIRTUAL_SERIAL_ADDR) {
-                        // Read virtual serial once per port, reuse for all configs on that port
-                        val response = virtualSerialCache.getOrPut(config.port) {
-                            repository.setPort(config.port)
-                            repository.readMemoryWithTimeout(idAddr, idSize, MemoryConstants.VIRTUAL_SERIAL_TIMEOUT_MS)?.decodeToString()?.trim()
-                        } ?: continue
-
-                        // Discard stale identify responses received on the data socket (UDP race)
-                        val identity = portIdentity[config.port]
-                        if (!identity.isNullOrEmpty() && response.equals(identity, ignoreCase = true)) continue
-
-                        val colonIdx = response.indexOf(':')
-                        if (colonIdx > 0) {
-                            val prefix = response.substring(0, colonIdx)
-                            val serial = response.substring(colonIdx + 1)
-                            if (prefix != config.console) continue
-                            val idString = serial.filter {
-                                it.isLetterOrDigit() || it == '-' || it == '_' || it == ' '
-                            }.trim()
-                            if (idString.length >= 3) {
-                                bestIdString = idString
-                                bestConsole = config.console
-                                matchedPort = config.port
-                                break
+                    val v2Json = repository.identifyV2() ?: continue
+                    try {
+                        val response = gson.fromJson(v2Json, IdentityResponse::class.java)
+                        val gid = response?.game_id
+                        if (gid != null && gid.isNotEmpty()
+                            && gid.any { it.isLetterOrDigit() }) {
+                            found = true
+                            activePort = port
+                            detectionFailures = 0
+                            wasGameDetected = true
+                            _detectedGameHash.value = response.game_hash
+                            if (response.game_id != _detectedGameId.value || response.platform != _detectedConsole.value) {
+                                _detectedGameId.value = response.game_id
+                                _detectedConsole.value = response.platform
                             }
-                        } else {
-                            // Legacy fallback: no colon, use longest-match heuristic
-                            val idString = response.filter { it.isLetterOrDigit() }
-                            if (idString.length >= 4
-                                && idString.length >= response.length / 2) {
-                                if (bestIdString == null || idString.length > bestIdString.length) {
-                                    bestIdString = idString
-                                    bestConsole = config.console
-                                    matchedPort = config.port
-                                }
+                            if (BuildConfig.DEBUG) {
+                                Log.d(TAG, "V2 hit on port $port: id=${response.game_id} hash=${response.game_hash} platform=${response.platform}")
                             }
+                            break
                         }
-                    } else {
-                        // Non-virtual-address entries: direct memory read
-                        repository.setPort(config.port)
-                        val rawId = repository.readMemory(idAddr, idSize)
-                        val response = rawId?.decodeToString()?.trim() ?: continue
-                        val idString = response.filter { it.isLetterOrDigit() }
-                        if (idString.length >= 4
-                            && idString.length >= response.length / 2) {
-                            if (bestIdString == null || idString.length > bestIdString.length) {
-                                bestIdString = idString
-                                bestConsole = config.console
-                                matchedPort = config.port
-                            }
-                        }
-                    }
-                }
-
-                if (bestIdString != null) {
-                    found = true
-                    detectionFailures = 0
-                    wasGameDetected = true
-                    if (bestIdString != _detectedGameId.value || bestConsole != _detectedConsole.value) {
-                        _detectedGameId.value = bestIdString
-                        _detectedConsole.value = bestConsole
+                    } catch (e: Exception) {
+                        if (BuildConfig.DEBUG) Log.d(TAG, "V2 parse failed on port $port: ${e.message}")
                     }
                 }
 
                 if (!found) {
                     detectionFailures++
                     if (detectionFailures >= MemoryConstants.MAX_DETECTION_FAILURES) {
-                        // Clear game state once, but keep identity cached
                         if (wasGameDetected) {
                             _detectedGameId.value = null
                             _detectedConsole.value = null
+                            _detectedGameHash.value = null
                             _uiState.value = _uiState.value.copy(isConnected = false)
                             wasGameDetected = false
                         }
                     }
-                    // After extended failures, re-identify to handle emulator
-                    // switches on the same port (e.g. Dolphin → RetroArch).
-                    // Reset to MAX_DETECTION_FAILURES (not 0) so the next cycle
-                    // immediately re-probes identity without re-clearing game state.
+                    // After extended failures, clear active port to re-probe all
                     if (detectionFailures >= MemoryConstants.IDENTITY_REFRESH_FAILURES) {
-                        portIdentity.clear()
+                        activePort = null
                         detectionFailures = MemoryConstants.MAX_DETECTION_FAILURES
                     }
                 }
-                delay(if (found && detectionFailures == 0) MemoryConstants.DETECTION_SUCCESS_DELAY_MS else MemoryConstants.DETECTION_RETRY_DELAY_MS)
+                delay(if (found) MemoryConstants.DETECTION_SUCCESS_DELAY_MS else MemoryConstants.DETECTION_RETRY_DELAY_MS)
             }
         }
     }
 
-    fun setProfile(profile: ProfileConfig, pollingIntervalMs: Long = MemoryConstants.POLLING_INTERVAL_MS) {
+    fun setProfile(
+        profile: ProfileConfig,
+        pollingIntervalMs: Long = MemoryConstants.POLLING_INTERVAL_MS,
+        confidence: MatchConfidence = MatchConfidence.MATCHED
+    ) {
         currentProfile = profile
-        startPolling(profile, pollingIntervalMs)
+        currentConfidence = confidence
+        _matchConfidence.value = confidence
+        startPolling(profile, pollingIntervalMs, confidence)
     }
 
-    private fun startPolling(profile: ProfileConfig, pollingIntervalMs: Long) {
+    private fun startPolling(profile: ProfileConfig, pollingIntervalMs: Long, confidence: MatchConfidence) {
         pollingJob?.cancel()
         pollingJob = serviceScope.launch {
             while (isActive) {
@@ -203,20 +170,25 @@ class MemoryService(private val repository: MemoryRepository) {
                 val rawValues = mutableMapOf<String, Any>()
                 var successCount = 0
                 val gameId = _detectedGameId.value
-                
+                val byteOrder = byteOrderFor(profile.platform)
+
                 for (point in profile.dataPoints) {
-                    val addressLong = resolveEffectiveAddress(point, gameId, profile.platform) ?: continue
+                    // In FALLBACK mode, skip unstable data points
+                    if (confidence == MatchConfidence.FALLBACK && !point.stable) continue
+
+                    val addressLong = addressResolver.resolve(point, profile, gameId, byteOrder) ?: continue
                     val rawData = repository.readMemory(addressLong, point.size)
-                    
+
                     if (rawData != null) {
                         val rawNum = parseValue(rawData, point.type)
                         rawValues[point.id] = rawNum
-                        
+
                         var processedValue = rawNum
-                        if (point.formula != null && rawNum is Number) {
-                            processedValue = MathEngine.evaluate(point.formula, rawNum.toDouble())
+                        val formula = point.formula
+                        if (formula != null && rawNum is Number) {
+                            processedValue = MathEngine.evaluate(formula, rawNum.toDouble())
                         }
-                        
+
                         newValues[point.id] = processedValue
                         successCount++
                     }
@@ -225,7 +197,9 @@ class MemoryService(private val repository: MemoryRepository) {
                 _uiState.value = _uiState.value.copy(
                     isConnected = successCount > 0,
                     values = newValues,
-                    raw = rawValues
+                    raw = rawValues,
+                    confidence = currentConfidence?.name,
+                    gameHash = _detectedGameHash.value
                 )
 
                 delay(pollingIntervalMs)
@@ -237,7 +211,8 @@ class MemoryService(private val repository: MemoryRepository) {
         val profile = currentProfile ?: return
         val gameId = _detectedGameId.value ?: return
         val point = profile.dataPoints.find { it.id == varId } ?: return
-        val addr = resolveEffectiveAddress(point, gameId, profile.platform) ?: return
+        val byteOrder = byteOrderFor(profile.platform)
+        val addr = addressResolver.resolve(point, profile, gameId, byteOrder) ?: return
         val buffer = ByteBuffer.allocate(point.size)
         if (point.type.contains("le")) buffer.order(ByteOrder.LITTLE_ENDIAN)
         else buffer.order(ByteOrder.BIG_ENDIAN)
@@ -253,18 +228,21 @@ class MemoryService(private val repository: MemoryRepository) {
     fun runMacro(macroId: String, onLog: (String) -> Unit) {
         val profile = currentProfile ?: return
         val macro = profile.macros.find { it.id == macroId } ?: return
-        
+
         serviceScope.launch {
             onLog("Starting Macro: $macroId")
             for (step in macro.steps) {
-                if (step.delay != null) delay(step.delay)
-                if (step.varId != null && step.value != null) {
-                    val targetValue = if (step.value.all { it.isDigit() || it == '-' }) {
-                        step.value.toIntOrNull() ?: 0
+                val stepDelay = step.delay
+                if (stepDelay != null) delay(stepDelay)
+                val stepVarId = step.varId
+                val stepValue = step.value
+                if (stepVarId != null && stepValue != null) {
+                    val targetValue = if (stepValue.all { it.isDigit() || it == '-' }) {
+                        stepValue.toIntOrNull() ?: 0
                     } else {
-                        (_uiState.value.raw[step.value] as? Number)?.toInt() ?: 0
+                        (_uiState.value.raw[stepValue] as? Number)?.toInt() ?: 0
                     }
-                    writeVariable(step.varId, targetValue)
+                    writeVariable(stepVarId, targetValue)
                 }
             }
             onLog("Macro Finished: $macroId")
@@ -273,77 +251,6 @@ class MemoryService(private val repository: MemoryRepository) {
 
     fun writeMemory(address: Long, data: ByteArray) {
         repository.writeMemory(address, data)
-    }
-
-    /**
-     * Resolve a multi-level pointer chain to a final memory address.
-     * Reads the base pointer, then walks each offset, dereferencing intermediate
-     * pointers (mask to 32-bit unsigned) and adding the offset at each step.
-     * The last offset is added without dereferencing, yielding the target address.
-     */
-    private fun resolveEffectiveAddress(point: DataPoint, gameId: String?, platform: String? = null): Long? {
-        if (point.pointer != null) {
-            val chain = point.offsets
-                ?: point.offset?.let { listOf(it) }
-                ?: return null
-
-            if (chain.size > MemoryConstants.MAX_POINTER_CHAIN_DEPTH) return null
-
-            val ptrAddrStr = resolveFromMap(point.pointer, gameId) ?: return null
-            val ptrAddr = parseHex(ptrAddrStr) ?: return null
-            val order = if (platform == "GCN" || platform == "WII") ByteOrder.BIG_ENDIAN else ByteOrder.LITTLE_ENDIAN
-
-            val ptrData = repository.readMemory(ptrAddr, 4) ?: return null
-            var addr = ByteBuffer.wrap(ptrData).order(order).int.toLong() and 0xFFFFFFFFL
-            if (addr == 0L) return null // Null pointer, entity not loaded
-
-            for (i in chain.indices) {
-                val off = parseHex(chain[i]) ?: return null
-                addr += off
-                if (i < chain.lastIndex) {
-                    // Intermediate: dereference and mask to 32-bit unsigned
-                    val next = repository.readMemory(addr, 4) ?: return null
-                    addr = ByteBuffer.wrap(next).order(order).int.toLong() and 0xFFFFFFFFL
-                    if (addr == 0L) return null
-                }
-            }
-            return addr
-        }
-        // Static address
-        val addrStr = resolveFromMap(point.addresses, gameId) ?: return null
-        return parseHex(addrStr)
-    }
-
-    private fun resolveFromMap(map: Map<String, String>, gameId: String?): String? {
-        if (gameId == null) return map["default"]
-
-        // 1. Exact match (e.g., GZLE01)
-        map[gameId]?.let { return it }
-
-        // 2. Short match (e.g., GZLE)
-        if (gameId.length >= 4) {
-            map[gameId.substring(0, 4)]?.let { return it }
-        }
-
-        // 3. Series match (e.g., GZL)
-        if (gameId.length >= 3) {
-            map[gameId.substring(0, 3)]?.let { return it }
-        }
-
-        return map["default"]
-    }
-
-    private fun parseHex(hex: String): Long? {
-        if (hex.isBlank()) {
-            Log.w(TAG, "Invalid hex address: empty string in profile")
-            return null
-        }
-        return try {
-            hex.removePrefix("0x").toLong(16)
-        } catch (e: Exception) {
-            Log.w(TAG, "Invalid hex address '$hex' in profile: ${e.message}")
-            null
-        }
     }
 
     private fun parseValue(data: ByteArray, type: String): Any {

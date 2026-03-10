@@ -9,8 +9,5 @@ data class ConsoleConfig(
     val packageNames: List<String> = emptyList(), // Support multiple packages for forks
     val console: String, // GCN, WII, PSP, etc.
     val port: Int,
-    val idAddress: String,
-    val idSize: Int = 6,
-    val emulatorId: String = "", // EMLK discovery: matches identify() response; empty = legacy (always probe)
     val minPollingInterval: Long? = null // Fastest supported polling rate in ms (null = no limit)
 )

@@ -1,38 +1,34 @@
-package com.emulnk.core
-
-import android.util.Log
-import com.emulnk.BuildConfig
+package com.emulnk.core.math
 
 /**
- * Parses and evaluates simple math expressions.
+ * Parses and evaluates simple math expressions using a recursive-descent parser.
+ * Pure Kotlin — no Android dependencies.
+ *
+ * Supports: +, -, *, /, %, ^ (power), parentheses.
+ * The placeholder `v` in formulas is replaced with the actual value before parsing.
+ * This is NOT arbitrary code evaluation — it's a safe, bounded arithmetic parser.
  */
 object MathEngine {
+
+    const val MAX_EXPRESSION_LENGTH = 256
+    const val MAX_NESTING_DEPTH = 20
 
     private val VALUE_PLACEHOLDER = Regex("\\bv\\b")
 
     fun evaluate(formula: String, value: Double): Double {
-        if (formula.length > MathConstants.MAX_EXPRESSION_LENGTH) {
-            if (BuildConfig.DEBUG) Log.w("MathEngine", "Formula exceeds max length (${formula.length} > ${MathConstants.MAX_EXPRESSION_LENGTH}): ${formula.take(50)}...")
-            return value
-        }
-        // Use BigDecimal to avoid scientific notation (e.g., 1.0E7) which the parser can't handle
+        if (formula.length > MAX_EXPRESSION_LENGTH) return value
         val valueStr = java.math.BigDecimal(value).stripTrailingZeros().toPlainString()
         val expression = formula.replace(VALUE_PLACEHOLDER, valueStr)
         return try {
-            val result = eval(expression)
-            if (!result.isFinite()) {
-                if (BuildConfig.DEBUG) Log.w("MathEngine", "Formula produced non-finite result ($result): $formula")
-                return value
-            }
-            result
-        } catch (e: Exception) {
-            if (BuildConfig.DEBUG) Log.w("MathEngine", "Formula eval failed: $formula", e)
+            val result = parseAndCompute(expression)
+            if (!result.isFinite()) value else result
+        } catch (_: Exception) {
             value
         }
     }
 
-    /** Standard recursive-descent (precedence-climbing) parser: expression → term → factor. */
-    private fun eval(str: String): Double {
+    /** Standard recursive-descent (precedence-climbing) parser: expression -> term -> factor. */
+    private fun parseAndCompute(str: String): Double {
         return object : Any() {
             var pos = -1
             var ch = 0
@@ -85,8 +81,8 @@ object MathEngine {
                 val startPos = pos
                 if (eat('('.code)) {
                     depth++
-                    if (depth > MathConstants.MAX_NESTING_DEPTH) {
-                        throw RuntimeException("Max nesting depth exceeded (${MathConstants.MAX_NESTING_DEPTH})")
+                    if (depth > MAX_NESTING_DEPTH) {
+                        throw RuntimeException("Max nesting depth exceeded ($MAX_NESTING_DEPTH)")
                     }
                     x = parseExpression()
                     eat(')'.code)

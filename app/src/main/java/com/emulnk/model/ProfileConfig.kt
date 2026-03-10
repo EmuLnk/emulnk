@@ -1,35 +1,10 @@
 package com.emulnk.model
 
-/**
- * Defines the Memory Map and Logic for a specific Game series/version.
- */
-data class ProfileConfig(
-    val id: String,
-    val name: String,
-    val platform: String,
-    val gameIds: List<String> = emptyList(),
-    val dataPoints: List<DataPoint>,
-    val macros: List<MacroConfig> = emptyList()
-)
-
-data class DataPoint(
-    val id: String,
-    val type: String,
-    val size: Int,
-    val formula: String? = null,
-    val addresses: Map<String, String> = emptyMap(),
-    val pointer: Map<String, String>? = null,
-    val offset: String? = null,
-    val offsets: List<String>? = null
-)
-
-data class MacroConfig(
-    val id: String,          // e.g., "full_heal"
-    val steps: List<MacroStep>
-)
-
-data class MacroStep(
-    val varId: String? = null,   // The variable to write to
-    val value: String? = null,   // The value to write (Number or another varId)
-    val delay: Long? = null      // Optional delay in ms before next step
-)
+// Re-export core model types for backward compatibility with existing app code.
+// New code should import from com.emulnk.core.model directly.
+typealias ProfileConfig = com.emulnk.core.model.ProfileConfig
+typealias DataPoint = com.emulnk.core.model.DataPoint
+typealias MacroConfig = com.emulnk.core.model.MacroConfig
+typealias MacroStep = com.emulnk.core.model.MacroStep
+typealias BundleConfig = com.emulnk.core.model.BundleConfig
+typealias MatchConfidence = com.emulnk.core.model.MatchConfidence

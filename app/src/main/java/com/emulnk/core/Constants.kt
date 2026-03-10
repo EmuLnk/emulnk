@@ -85,9 +85,6 @@ object MemoryConstants {
      *  Handles emulator switches on the same port (e.g. Dolphin → RetroArch). */
     const val IDENTITY_REFRESH_FAILURES = 10
 
-    /** Virtual address used for file-based serial extraction (all RetroArch cores) */
-    const val VIRTUAL_SERIAL_ADDR = 0x00200000L
-
     /** Maximum single read size in bytes */
     const val MAX_READ_SIZE = 2048
 
@@ -97,14 +94,12 @@ object MemoryConstants {
     /** Maximum depth for multi-level pointer chains */
     const val MAX_POINTER_CHAIN_DEPTH = 10
 
-    /** Discovery handshake magic */
-    val IDENTIFY_MAGIC = byteArrayOf(0x45, 0x4D, 0x4C, 0x4B) // "EMLK"
+    /** Discovery handshake magic — expects JSON response with hash + game ID */
+    val IDENTIFY_V2_MAGIC = byteArrayOf(0x45, 0x4D, 0x4C, 0x4B, 0x56, 0x32) // "EMLKV2"
 
-    /** UDP timeout for EMLK identify requests in milliseconds */
-    const val IDENTIFY_TIMEOUT_MS = 300
+    /** UDP timeout for V2 identify (includes hash computation of zipped ROMs) */
+    const val IDENTIFY_V2_TIMEOUT_MS = 2000
 
-    /** UDP timeout for virtual serial reads (file I/O on emulator side) in milliseconds */
-    const val VIRTUAL_SERIAL_TIMEOUT_MS = 1500
 }
 
 object UiConstants {
@@ -282,12 +277,4 @@ object UiColors {
     const val TEXT_SECONDARY = 0xFF9E96B8.toInt()
     const val DIVIDER = 0xFF2A2650.toInt()
     const val INPUT_BACKGROUND = 0xFF151226.toInt()
-}
-
-object MathConstants {
-    /** Maximum formula expression length */
-    const val MAX_EXPRESSION_LENGTH = 256
-
-    /** Maximum nesting depth for parentheses */
-    const val MAX_NESTING_DEPTH = 20
 }

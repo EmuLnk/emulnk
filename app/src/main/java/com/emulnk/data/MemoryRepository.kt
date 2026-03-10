@@ -21,6 +21,7 @@ class MemoryRepository(
 
     companion object {
         private const val TAG = "MemoryRepository"
+        private const val V2_RECEIVE_BUFFER_SIZE = 1024
     }
 
     @Synchronized
@@ -93,43 +94,36 @@ class MemoryRepository(
         }
     }
 
+    /**
+     * V2 identify: sends EMLKV2 magic (6 bytes) and expects a JSON response.
+     * Returns the raw JSON string, or null if the emulator doesn't support V2.
+     */
     @Synchronized
-    fun identify(): String? {
+    fun identifyV2(): String? {
         val currentSocket = getSocket()
         val savedTimeout = currentSocket.soTimeout
         return try {
-            currentSocket.soTimeout = MemoryConstants.IDENTIFY_TIMEOUT_MS
+            currentSocket.soTimeout = MemoryConstants.IDENTIFY_V2_TIMEOUT_MS
             drainStalePackets(currentSocket)
 
             val requestPacket = DatagramPacket(
-                MemoryConstants.IDENTIFY_MAGIC, MemoryConstants.IDENTIFY_MAGIC.size, address, port
+                MemoryConstants.IDENTIFY_V2_MAGIC, MemoryConstants.IDENTIFY_V2_MAGIC.size, address, port
             )
             currentSocket.send(requestPacket)
 
-            val receiveBuffer = ByteArray(256)
+            val receiveBuffer = ByteArray(V2_RECEIVE_BUFFER_SIZE)
             val receivePacket = DatagramPacket(receiveBuffer, receiveBuffer.size)
             currentSocket.receive(receivePacket)
 
             val response = receivePacket.data.copyOf(receivePacket.length)
-                .decodeToString().trim().lowercase()
-            if (response.isNotEmpty()) response else null
+                .decodeToString().trim()
+            // V2 response must be JSON (starts with '{')
+            if (response.startsWith("{")) response else null
         } catch (e: Exception) {
             if (BuildConfig.DEBUG) {
-                Log.d(TAG, "identify() on port $port: ${e.message}")
+                Log.d(TAG, "identifyV2() on port $port: ${e.message}")
             }
             null
-        } finally {
-            currentSocket.soTimeout = savedTimeout
-        }
-    }
-
-    @Synchronized
-    fun readMemoryWithTimeout(memoryAddress: Long, size: Int, timeoutMs: Int): ByteArray? {
-        val currentSocket = getSocket()
-        val savedTimeout = currentSocket.soTimeout
-        return try {
-            currentSocket.soTimeout = timeoutMs
-            readMemory(memoryAddress, size)
         } finally {
             currentSocket.soTimeout = savedTimeout
         }

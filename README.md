@@ -19,6 +19,8 @@
 
 <p align="center">
   <a href="https://apps.obtainium.imranr.dev/redirect.html?r=obtainium://add/https://github.com/EmuLnk/emulnk"><img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" height="55" alt="Get it on Obtainium"/></a>
+  &nbsp;&nbsp;
+  <a href="https://discord.gg/Qn2KQBdwRH"><img src="https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"/></a>
 </p>
 
 ---
@@ -60,7 +62,7 @@ flowchart TB
         THEME["Theme Dashboard"]
     end
 
-    EMU -- "game serial · UDP" --> APP
+    EMU -- "identity · UDP" --> APP
     APP -- "memory read · UDP" --> EMU
     APP -- "live data · JS Bridge" --> THEME
 
@@ -72,8 +74,8 @@ flowchart TB
     style THEME fill:#252142,stroke:#00E5FF,color:#e0e0e0
 ```
 
-1. **Detect**: Sends a UDP request, emulator responds with a platform-prefixed serial (e.g. `SNES:SUPER METROID`)
-2. **Match**: Serial maps to a profile defining memory addresses and data types
+1. **Detect**: Sends an EMLKV2 handshake over UDP; emulator responds with JSON containing `game_id`, `game_hash`, and `platform`
+2. **Match**: Hash resolves to an exact profile, or serial falls back to a compatible one
 3. **Poll**: Data points are read from emulator memory at a configurable rate (default 5 Hz)
 4. **Render**: Live data is pushed to the theme WebView (full-screen dashboard or floating overlay widgets) via JavaScript bridge
 

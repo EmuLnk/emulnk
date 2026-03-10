@@ -7,7 +7,10 @@ import com.emulnk.BuildConfig
 import com.emulnk.model.AppConfig
 import com.emulnk.model.ConsoleConfig
 import com.emulnk.model.CustomOverlayConfig
-import com.emulnk.model.ProfileConfig
+import com.emulnk.core.model.HashEntry
+import com.emulnk.core.model.ProfileConfig
+import com.emulnk.core.resolver.ProfileMerger
+import com.emulnk.core.resolver.ProfileResolver
 import com.emulnk.model.OverlayLayout
 import com.emulnk.model.SavedOverlayConfig
 import com.emulnk.model.StoreWidget
@@ -88,6 +91,10 @@ class ConfigManager(private val context: android.content.Context) {
         appConfigFile = File(rootDir, "app_settings.json")
     }
 
+    /** Cached hash registry: hash -> HashEntry. Loaded lazily, refreshed on sync. */
+    @Volatile
+    private var hashRegistry: Map<String, HashEntry> = emptyMap()
+
     fun getRootDir(): File = rootDir
     fun getThemesDir(): File = themesDir
     fun getSavesDir(): File = savesDir
@@ -111,6 +118,70 @@ class ConfigManager(private val context: android.content.Context) {
         profilesDir.mkdirs()
         savesDir.mkdirs()
         userOverlaysDir.mkdirs()
+    }
+
+    // --- Hash Registry ---
+
+    /** Load hashes.json from root directory into memory. Called on startup and after sync. */
+    fun loadHashRegistry() {
+        val file = File(rootDir, "hashes.json")
+        if (!file.exists() || file.length() > ConfigConstants.MAX_CONFIG_FILE_SIZE) {
+            hashRegistry = emptyMap()
+            return
+        }
+        val parsed = try {
+            val type = object : TypeToken<Map<String, HashEntry>>() {}.type
+            gson.fromJson<Map<String, HashEntry>>(file.readText(), type) ?: emptyMap()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse hashes.json", e)
+            emptyMap()
+        }
+        hashRegistry = parsed
+    }
+
+    fun getHashRegistry(): Map<String, HashEntry> = hashRegistry
+
+    /**
+     * Create a ProfileResolver that uses the hash registry and this ConfigManager's
+     * profile loading/resolution capabilities.
+     */
+    fun createProfileResolver(): ProfileResolver {
+        return ProfileResolver(
+            hashRegistry = hashRegistry,
+            profileLoader = object : ProfileResolver.ProfileLoader {
+                override fun loadProfile(profileId: String): ProfileConfig? {
+                    return this@ConfigManager.loadProfileResolved(profileId)
+                }
+                override fun resolveProfileId(gameId: String): String? {
+                    return this@ConfigManager.resolveProfileId(gameId)
+                }
+            }
+        )
+    }
+
+    /**
+     * Load a profile by ID, resolving inheritance via ProfileMerger.
+     * Returns the fully-merged profile ready for use.
+     */
+    fun loadProfileResolved(profileId: String): ProfileConfig? {
+        val raw = loadProfileRaw(profileId) ?: return null
+        if (raw.extends == null) return raw
+        return ProfileMerger.resolve(raw) { loadProfileRaw(it) }
+    }
+
+    /** Load a profile without inheritance resolution (raw JSON parse). */
+    private fun loadProfileRaw(profileId: String): ProfileConfig? {
+        if (!validateId(profileId, "profileId")) return null
+        // Search in platform subdirectories first, then flat profiles dir
+        val platformDirs = profilesDir.listFiles { f -> f.isDirectory } ?: emptyArray()
+        for (dir in platformDirs) {
+            val file = File(dir, "$profileId.json")
+            if (file.exists()) return parseProfile(file)
+        }
+        // Fallback to flat structure
+        val file = File(profilesDir, "$profileId.json")
+        if (file.exists()) return parseProfile(file)
+        return null
     }
 
     fun isOnboardingCompleted(): Boolean = prefs.getBoolean("onboarding_completed", false)
@@ -183,18 +254,14 @@ class ConfigManager(private val context: android.content.Context) {
                 name = "Dolphin (GameCube)",
                 packageNames = listOf("org.emulnk.dolphinlnk"),
                 console = "GCN",
-                port = 55355,
-                idAddress = "0x80000000",
-                emulatorId = "dolphin"
+                port = 55355
             ),
             ConsoleConfig(
                 id = "dolphin_wii",
                 name = "Dolphin (Wii)",
                 packageNames = listOf("org.emulnk.dolphinlnk"),
                 console = "WII",
-                port = 55355,
-                idAddress = "0x80000000",
-                emulatorId = "dolphin"
+                port = 55355
             )
         )
         if (save) {
@@ -255,6 +322,16 @@ class ConfigManager(private val context: android.content.Context) {
         }
     }
 
+    /** Collect all profile JSON files from both flat and platform subdirectory layouts. */
+    private fun allProfileFiles(): List<File> {
+        if (!profilesDir.exists()) return emptyList()
+        val flat = profilesDir.listFiles { f -> f.isFile && f.extension == "json" }?.toList() ?: emptyList()
+        val nested = profilesDir.listFiles { f -> f.isDirectory }
+            ?.flatMap { dir -> dir.listFiles { f -> f.extension == "json" }?.toList() ?: emptyList() }
+            ?: emptyList()
+        return flat + nested
+    }
+
     /**
      * Resolves a raw game ID to a profile ID using a 3-tier strategy:
      * 1. Exact match: gameIds list in profile JSON matches the gameId case-insensitively
@@ -262,20 +339,20 @@ class ConfigManager(private val context: android.content.Context) {
      * 3. Filename match: for GameCube/Wii style IDs, matches profile filename prefixes
      */
     fun resolveProfileId(gameId: String): String? {
-        if (!profilesDir.exists()) return null
-        val files = profilesDir.listFiles { f -> f.extension == "json" } ?: return null
+        val files = allProfileFiles()
+        if (files.isEmpty()) return null
         val profiles = files.mapNotNull { parseProfile(it) }
 
         profiles.find { p ->
-            p.gameIds?.any { it.equals(gameId, ignoreCase = true) } == true
+            p.gameIds.any { it.equals(gameId, ignoreCase = true) }
         }?.let { return it.id }
 
         // Prefix match for truncated IDs (e.g. SNES serials)
         if (gameId.length >= 6) {
             profiles.find { p ->
-                p.gameIds?.any {
+                p.gameIds.any {
                     it.replace(" ", "").startsWith(gameId, ignoreCase = true)
-                } == true
+                }
             }?.let { return it.id }
         }
 
@@ -288,35 +365,32 @@ class ConfigManager(private val context: android.content.Context) {
         return null
     }
 
+    /**
+     * Load a profile by ID with inheritance resolution and filename-based fallback.
+     * This is the primary entry point for the UI layer.
+     */
     fun loadProfile(profileId: String): ProfileConfig? {
         if (!validateId(profileId, "profileId")) return null
         if (BuildConfig.DEBUG) {
             Log.d(TAG, "Loading profile for: $profileId")
         }
 
-        // 1. Try exact match (e.g., GZLE01.json)
-        var file = File(profilesDir, "$profileId.json")
-        if (file.exists()) return parseProfile(file)
+        // Try resolved (inheritance-aware) load first
+        loadProfileResolved(profileId)?.let { return it }
 
-        // 2. Try short match (e.g., GZLE.json)
+        // Fallback: filename-based matching (short + series)
         if (profileId.length >= 4) {
-            file = File(profilesDir, "${profileId.take(4)}.json")
-            if (file.exists()) {
-                if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "Found profile via 4-char match: ${file.name}")
-                }
-                return parseProfile(file)
+            val shortId = profileId.take(4)
+            loadProfileResolved(shortId)?.let {
+                if (BuildConfig.DEBUG) Log.d(TAG, "Found profile via 4-char match: $shortId")
+                return it
             }
         }
-
-        // 3. Try series match (e.g., GZL.json)
         if (profileId.length >= 3) {
-            file = File(profilesDir, "${profileId.take(3)}.json")
-            if (file.exists()) {
-                if (BuildConfig.DEBUG) {
-                    Log.d(TAG, "Found profile via series match: ${file.name}")
-                }
-                return parseProfile(file)
+            val seriesId = profileId.take(3)
+            loadProfileResolved(seriesId)?.let {
+                if (BuildConfig.DEBUG) Log.d(TAG, "Found profile via series match: $seriesId")
+                return it
             }
         }
 

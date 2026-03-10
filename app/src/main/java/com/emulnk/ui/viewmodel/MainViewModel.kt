@@ -1,6 +1,7 @@
 package com.emulnk.ui.viewmodel
 
 import android.app.Application
+import android.content.Intent
 import android.util.Log
 import com.emulnk.BuildConfig
 import com.emulnk.EmuLnkApplication
@@ -33,6 +34,7 @@ import com.emulnk.model.ThemeMeta
 import com.emulnk.model.ThemeType
 import com.emulnk.model.resolvedScreenTarget
 import com.emulnk.model.resolvedType
+import com.emulnk.model.MatchConfidence
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.util.concurrent.CancellationException
@@ -113,6 +115,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<GameData> = memoryService.uiState
     val detectedGameId: StateFlow<String?> = memoryService.detectedGameId
     val detectedConsole: StateFlow<String?> = memoryService.detectedConsole
+    val detectedGameHash: StateFlow<String?> = memoryService.detectedGameHash
 
     private val _availableThemes = MutableStateFlow<List<ThemeConfig>>(emptyList())
     val availableThemes: StateFlow<List<ThemeConfig>> = _availableThemes
@@ -159,11 +162,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _resolvedProfileId = MutableStateFlow<String?>(null)
     val resolvedProfileId: StateFlow<String?> = _resolvedProfileId
 
+    private var _lastDetectedHash: String? = null
+
     private val _savedOverlays = MutableStateFlow<List<SavedOverlayConfig>>(emptyList())
     val savedOverlays: StateFlow<List<SavedOverlayConfig>> = _savedOverlays
 
     private val _checkedWidgetProfiles: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
     private var settingsSaveJob: Job? = null
+    private val _currentConfidence = MutableStateFlow(MatchConfidence.MATCHED)
+    val currentConfidence: StateFlow<MatchConfidence> = _currentConfidence
+
+    private val _detectedGameLabel = MutableStateFlow<String?>(null)
+    val detectedGameLabel: StateFlow<String?> = _detectedGameLabel
 
     private val _rawBaseUrl = MutableStateFlow("")
     val rawBaseUrl: StateFlow<String> = _rawBaseUrl
@@ -182,9 +192,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         MigrationManager(application, configManager).runIfNeeded()
+        configManager.loadHashRegistry()
         refreshAllInstalledThemes()
         refreshSavedOverlays()
-        
+
         memoryService.start(configManager.getConsoleConfigs())
 
         if (configManager.isOnboardingCompleted()) {
@@ -217,17 +228,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         @OptIn(FlowPreview::class)
         viewModelScope.launch {
-            kotlinx.coroutines.flow.combine(detectedGameId, detectedConsole, rootPath) { gameId, console, path ->
-                Triple(gameId, console, path)
-            }.debounce(300L).collectLatest { (gameId, console, path) ->
+            kotlinx.coroutines.flow.combine(detectedGameId, detectedConsole, rootPath, memoryService.detectedGameHash) { gameId, console, path, hash ->
+                arrayOf(gameId, console, path, hash)
+            }.debounce(300L).collectLatest { args ->
+                val gameId = args[0] as? String
+                val console = args[1] as? String
+                val hash = args[3] as? String
                 if (gameId != null && console != null) {
-                    _resolvedProfileId.value = configManager.resolveProfileId(gameId)
+                    var romSwapped = false
+                    // ROM swap: hash changed while theme is active → stop overlay + deselect
+                    if (hash != null && _lastDetectedHash != null && hash != _lastDetectedHash && _selectedTheme.value != null) {
+                        stopOverlayService()
+                        _selectedTheme.value = null
+                        _pairedOverlay.value = null
+                        _pairedSecondaryOverlay.value = null
+                        romSwapped = true
+                    }
+                    if (hash != null) _lastDetectedHash = hash
+
+                    val resolver = configManager.createProfileResolver()
+                    val result = resolver.resolve(hash, gameId)
+                    _resolvedProfileId.value = result?.profile?.id
+                    _currentConfidence.value = result?.confidence ?: MatchConfidence.UNKNOWN
+                    val entry = result?.hashEntry
+                    _detectedGameLabel.value = when {
+                        entry?.label != null && entry.version != null -> "${entry.label} (${entry.version})"
+                        entry?.label != null -> entry.label
+                        else -> null
+                    }
                     refreshThemesForGame(gameId, console)
                     if (_appConfig.value.autoBoot) {
+                        if (romSwapped) delay(500) // let overlay service stop before reselection
                         autoSelectPair(gameId)
                     }
                 } else {
                     _resolvedProfileId.value = null
+                    _lastDetectedHash = null
+                    _detectedGameLabel.value = null
                     if (_selectedTheme.value != null) {
                         delay(2000) // Give theme time to show disconnection state
                     }
@@ -320,6 +357,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             android.util.Log.d(TAG, "Dev Mode: Loading all ${allThemes.size} themes")
         }
         _availableThemes.value = filterThemes(allThemes, null, null)
+    }
+
+    private fun stopOverlayService() {
+        val app = getApplication<Application>()
+        val stop = Intent(app, OverlayService::class.java).apply {
+            action = OverlayService.ACTION_STOP
+        }
+        app.startService(stop)
+        val bringBack = Intent(app, com.emulnk.MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+        }
+        app.startActivity(bringBack)
     }
 
     private fun autoSelectPair(gameId: String) {
@@ -552,7 +603,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             memoryService.updateState { generateMockGameData(currentSettings) }
         } else {
-            configManager.loadProfile(theme.targetProfileId)?.let { profile ->
+            // Prefer hash-resolved profile (may differ from theme target, e.g. ROM hack)
+            val hash = memoryService.detectedGameHash.value
+            val gameId = detectedGameId.value
+            val resolver = configManager.createProfileResolver()
+            val resolved = resolver.resolve(hash, gameId)
+            val profile = resolved?.profile ?: configManager.loadProfile(theme.targetProfileId)
+            val confidence = resolved?.confidence ?: _currentConfidence.value
+
+            if (profile != null) {
                 val consoleInterval = configManager.getConsoleConfigs()
                     .firstOrNull { it.console == detectedConsole.value }
                     ?.minPollingInterval
@@ -560,7 +619,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     consoleInterval ?: MemoryConstants.MIN_POLLING_INTERVAL_MS,
                     theme.pollingInterval ?: MemoryConstants.POLLING_INTERVAL_MS
                 ).coerceIn(MemoryConstants.MIN_POLLING_INTERVAL_MS, MemoryConstants.MAX_POLLING_INTERVAL_MS)
-                memoryService.setProfile(profile, effectiveInterval)
+                memoryService.setProfile(profile, effectiveInterval, confidence = confidence)
             }
         }
     }
@@ -1024,6 +1083,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 pathFilter = { path ->
                     path == "index.json" ||
                     path == "consoles.json" ||
+                    path == "hashes.json" ||
                     path.startsWith("profiles/")
                 }
             ) { message ->
@@ -1037,6 +1097,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (BuildConfig.DEBUG) {
                     android.util.Log.i(TAG, "Sync successful, refreshing configs.")
                 }
+                configManager.loadHashRegistry()
                 refreshAllInstalledThemes()
 
                 try {

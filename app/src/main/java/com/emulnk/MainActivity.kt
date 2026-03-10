@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.emulnk.core.DisplayHelper
+import com.emulnk.model.MatchConfidence
 import com.emulnk.core.OverlayConstants
 import com.emulnk.core.OverlayService
 import com.emulnk.core.UiConstants
@@ -149,6 +150,9 @@ class MainActivity : ComponentActivity() {
                 val detectedConsole by vm.detectedConsole.collectAsState()
                 val installedWidgetIds by vm.installedWidgetIds.collectAsState()
                 val userOverlayThemes by vm.userOverlayThemes.collectAsState()
+                val currentConfidence by vm.currentConfidence.collectAsState()
+                val gameHash by vm.detectedGameHash.collectAsState()
+                val detectedGameLabel by vm.detectedGameLabel.collectAsState()
 
                 var currentScreen by remember { mutableStateOf<Screen>(Screen.Onboarding) }
                 onOverlayStarted = { currentScreen = Screen.Overlay }
@@ -408,7 +412,7 @@ class MainActivity : ComponentActivity() {
                                     vm.fetchGallery()
                                     currentScreen = Screen.Gallery
                                 },
-                                detectedGameName = detectedGameName,
+                                detectedGameName = detectedGameLabel ?: detectedGameName,
                                 userOverlays = userOverlayThemes,
                                 onDeleteOverlay = { vm.deleteOverlayPreset(it) },
                                 onEditOverlay = { overlay ->
@@ -420,7 +424,10 @@ class MainActivity : ComponentActivity() {
                                 onLaunchBuilder = {
                                     val pid = resolvedProfileId; val con = detectedConsole
                                     if (pid != null && con != null) launchBuilder(pid, con)
-                                }
+                                },
+                                confidence = currentConfidence,
+                                gameHash = gameHash,
+                                isDevMode = appConfig.devMode
                             )
                         }
                         is Screen.Gallery -> {
