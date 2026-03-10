@@ -7,11 +7,12 @@ data class ProfileConfig(
     val id: String,
     val name: String,
     val platform: String,
-    val gameIds: List<String> = emptyList(),
+    // Nullable for Gson (bypasses Kotlin defaults); normalized to emptyList() by ConfigManager.parseProfile()
+    val gameIds: List<String>? = emptyList(),
     val extends: String? = null,
     val bundles: Map<String, BundleConfig>? = null,
-    val dataPoints: List<DataPoint>,
-    val macros: List<MacroConfig> = emptyList()
+    val dataPoints: List<DataPoint>? = emptyList(),
+    val macros: List<MacroConfig>? = emptyList()
 )
 
 data class DataPoint(

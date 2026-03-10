@@ -172,7 +172,7 @@ class MemoryService(private val repository: MemoryRepository) {
                 val gameId = _detectedGameId.value
                 val byteOrder = byteOrderFor(profile.platform)
 
-                for (point in profile.dataPoints) {
+                for (point in profile.dataPoints.orEmpty()) {
                     // In FALLBACK mode, skip unstable data points
                     if (confidence == MatchConfidence.FALLBACK && !point.stable) continue
 
@@ -210,7 +210,7 @@ class MemoryService(private val repository: MemoryRepository) {
     fun writeVariable(varId: String, value: Int) {
         val profile = currentProfile ?: return
         val gameId = _detectedGameId.value ?: return
-        val point = profile.dataPoints.find { it.id == varId } ?: return
+        val point = profile.dataPoints?.find { it.id == varId } ?: return
         val byteOrder = byteOrderFor(profile.platform)
         val addr = addressResolver.resolve(point, profile, gameId, byteOrder) ?: return
         val buffer = ByteBuffer.allocate(point.size)
@@ -227,7 +227,7 @@ class MemoryService(private val repository: MemoryRepository) {
 
     fun runMacro(macroId: String, onLog: (String) -> Unit) {
         val profile = currentProfile ?: return
-        val macro = profile.macros.find { it.id == macroId } ?: return
+        val macro = profile.macros?.find { it.id == macroId } ?: return
 
         serviceScope.launch {
             onLog("Starting Macro: $macroId")

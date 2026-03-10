@@ -14,8 +14,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -160,13 +162,31 @@ fun LauncherScreen(
         }
 
         if (isDevMode && gameHash != null) {
-            Text(
-                text = "Hash: $gameHash",
-                fontSize = 10.sp,
-                color = TextTertiary,
-                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            val clipboardManager = LocalClipboardManager.current
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(top = EmuLnkDimens.spacingXs)
-            )
+            ) {
+                Text(
+                    text = "Hash: $gameHash",
+                    fontSize = 10.sp,
+                    color = TextTertiary,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                )
+                IconButton(
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(gameHash))
+                    },
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_content_copy),
+                        contentDescription = "Copy hash",
+                        tint = TextTertiary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
         }
 
         if (appConfig.devMode) {

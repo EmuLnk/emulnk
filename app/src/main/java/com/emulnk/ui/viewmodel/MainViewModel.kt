@@ -263,7 +263,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 } else {
                     _resolvedProfileId.value = null
-                    _lastDetectedHash = null
+                    // _lastDetectedHash intentionally kept. collectLatest may cancel this branch
+                    // during a ROM swap, and the if-branch needs the old hash for comparison.
                     _detectedGameLabel.value = null
                     if (_selectedTheme.value != null) {
                         delay(2000) // Give theme time to show disconnection state
@@ -288,6 +289,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun filterThemes(allThemes: List<ThemeConfig>, gameId: String?, console: String?): List<ThemeConfig> {
         val currentAppVersion = configManager.getAppVersionCode()
         val resolvedId = gameId?.let { configManager.resolveProfileId(it) }
+        val parentId = resolvedId?.let { configManager.getParentProfileId(it) }
         val dualScreen = _isDualScreen.value
 
         return allThemes.filter { theme ->
@@ -308,7 +310,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             if (gameId != null) {
                 val themeTarget = theme.targetProfileId
-                val matchesGame = resolvedId != null && resolvedId.equals(themeTarget, ignoreCase = true)
+                val matchesGame = resolvedId != null && (
+                    resolvedId.equals(themeTarget, ignoreCase = true) ||
+                    parentId?.equals(themeTarget, ignoreCase = true) == true
+                )
 
                 val matchesConsole = theme.targetConsole == null || theme.targetConsole == console
 
@@ -473,6 +478,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun getAppVersionCode() = configManager.getAppVersionCode()
+    fun getParentProfileId(profileId: String): String? = configManager.getParentProfileId(profileId)
 
     fun getThemeById(id: String): ThemeConfig? {
         return _allInstalledThemes.value.find { it.id == id }

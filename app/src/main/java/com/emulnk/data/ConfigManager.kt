@@ -169,6 +169,11 @@ class ConfigManager(private val context: android.content.Context) {
         return ProfileMerger.resolve(raw) { loadProfileRaw(it) }
     }
 
+    /** Return the direct parent profile ID (the `extends` field) for a given profile, or null. */
+    fun getParentProfileId(profileId: String): String? {
+        return loadProfileRaw(profileId)?.extends
+    }
+
     /** Load a profile without inheritance resolution (raw JSON parse). */
     private fun loadProfileRaw(profileId: String): ProfileConfig? {
         if (!validateId(profileId, "profileId")) return null
@@ -344,15 +349,15 @@ class ConfigManager(private val context: android.content.Context) {
         val profiles = files.mapNotNull { parseProfile(it) }
 
         profiles.find { p ->
-            p.gameIds.any { it.equals(gameId, ignoreCase = true) }
+            p.gameIds?.any { it.equals(gameId, ignoreCase = true) } == true
         }?.let { return it.id }
 
         // Prefix match for truncated IDs (e.g. SNES serials)
         if (gameId.length >= 6) {
             profiles.find { p ->
-                p.gameIds.any {
+                p.gameIds?.any {
                     it.replace(" ", "").startsWith(gameId, ignoreCase = true)
-                }
+                } == true
             }?.let { return it.id }
         }
 
@@ -443,7 +448,13 @@ class ConfigManager(private val context: android.content.Context) {
             return null
         }
         return try {
-            gson.fromJson(file.readText(), ProfileConfig::class.java)
+            val profile = gson.fromJson(file.readText(), ProfileConfig::class.java)
+            // Gson bypasses Kotlin defaults; normalize null lists
+            profile?.copy(
+                gameIds = profile.gameIds ?: emptyList(),
+                dataPoints = profile.dataPoints ?: emptyList(),
+                macros = profile.macros ?: emptyList()
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing profile ${file.name}", e)
             null

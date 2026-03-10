@@ -101,7 +101,7 @@ class AddressResolver(
         // Pointer-resolved bundle base
         if (bundle.pointer != null) {
             val ptrAddr = parseHex(bundle.pointer) ?: return null
-            val chain = bundle.chain ?: return null
+            val chain = bundle.chain ?: emptyList()
             if (chain.size > maxPointerChainDepth) return null
             return walkPointerChain(ptrAddr, chain, byteOrder)
         }

@@ -46,8 +46,8 @@ object ProfileMerger {
             gameIds = child.gameIds,
             extends = null, // Resolved — no longer needed
             bundles = mergeBundles(child.bundles, parent.bundles),
-            dataPoints = mergeById(child.dataPoints, parent.dataPoints) { it.id },
-            macros = mergeById(child.macros, parent.macros) { it.id }
+            dataPoints = mergeById(child.dataPoints.orEmpty(), parent.dataPoints.orEmpty()) { it.id },
+            macros = mergeById(child.macros.orEmpty(), parent.macros.orEmpty()) { it.id }
         )
     }
 
@@ -76,17 +76,18 @@ object ProfileMerger {
     }
 
     private fun <T> mergeById(
-        childList: List<T>,
-        parentList: List<T>,
+        children: List<T>,
+        parents: List<T>,
         idExtractor: (T) -> String
     ): List<T> {
-        val childIds = childList.map { idExtractor(it) }.toSet()
-        val inherited = parentList.filter { idExtractor(it) !in childIds }
-        val overridden = parentList.filter { idExtractor(it) in childIds }
+        val childIds = children.map { idExtractor(it) }.toSet()
+        val parentIds = parents.map { idExtractor(it) }.toSet()
+        val inherited = parents.filter { idExtractor(it) !in childIds }
+        val overridden = parents.filter { idExtractor(it) in childIds }
             .map { parent ->
-                childList.first { idExtractor(it) == idExtractor(parent) }
+                children.first { idExtractor(it) == idExtractor(parent) }
             }
-        val appended = childList.filter { idExtractor(it) !in parentList.map(idExtractor).toSet() }
+        val appended = children.filter { idExtractor(it) !in parentIds }
 
         return inherited + overridden + appended
     }

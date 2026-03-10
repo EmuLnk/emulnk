@@ -307,7 +307,10 @@ class MainActivity : ComponentActivity() {
                                 val idx = repoIndex; val pid = resolvedProfileId
                                 if (pid == null || idx == null) null
                                 else {
-                                    val game = idx.consoles.flatMap { it.games }.firstOrNull { it.profileId == pid }
+                                    val allGames = idx.consoles.flatMap { it.games }
+                                    val parentId = vm.getParentProfileId(pid)
+                                    val game = allGames.firstOrNull { it.profileId == pid }
+                                        ?: parentId?.let { p -> allGames.firstOrNull { it.profileId == p } }
                                     if (game != null) {
                                         val installedIds = allInstalledThemes.map { it.id }.toSet()
                                         val uninstalled = game.themes.count { it.id !in installedIds }
@@ -408,7 +411,11 @@ class MainActivity : ComponentActivity() {
                                 uninstalledThemeCount = uninstalledThemeCount,
                                 hasGalleryWidgets = hasGalleryWidgets,
                                 onJumpToGallery = {
-                                    galleryTargetProfileId = resolvedProfileId
+                                    val pid = resolvedProfileId
+                                    val allGames = repoIndex?.consoles?.flatMap { it.games }
+                                    val hasOwnEntry = allGames?.any { it.profileId == pid } == true
+                                    galleryTargetProfileId = if (hasOwnEntry || pid == null) pid
+                                        else vm.getParentProfileId(pid) ?: pid
                                     vm.fetchGallery()
                                     currentScreen = Screen.Gallery
                                 },
