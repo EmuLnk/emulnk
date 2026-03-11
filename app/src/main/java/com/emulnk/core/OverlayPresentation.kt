@@ -32,7 +32,8 @@ class OverlayPresentation(
     private val themesRootDir: File,
     private val devMode: Boolean = false,
     private val devUrl: String = "",
-    private val widgetsBasePath: String? = null
+    private val widgetsBasePath: String? = null,
+    private val devThemePath: String = themeId
 ) {
 
     companion object {
@@ -141,7 +142,7 @@ class OverlayPresentation(
                     val baseDir = if (interceptAssetsPath != null) File(interceptAssetsPath)
                         else if (widgetsBasePath != null) File(widgetsBasePath)
                         else File(themesRootDir, themeId)
-                    WebInterceptor.intercept(url, baseDir)?.let { return it }
+                    WebInterceptor.intercept(url, baseDir, devMode, devUrl, devThemePath)?.let { return it }
                     return super.shouldInterceptRequest(view, request)
                 }
             }
@@ -208,6 +209,12 @@ class OverlayPresentation(
         (webView?.parent as? android.view.ViewGroup)?.removeView(webView)
         webView?.destroy()
         widgetConfigs.remove(id)
+    }
+
+    fun reloadAll() {
+        for ((_, webView) in widgetWebViews) {
+            webView.reload()
+        }
     }
 
     fun pushDataToWidgets(js: String, gameData: GameData) {

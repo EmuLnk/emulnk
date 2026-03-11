@@ -58,6 +58,9 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
 import java.io.File
 import kotlin.math.abs
 
@@ -98,6 +101,8 @@ class OverlayService : Service() {
     private var overlayBridge: OverlayBridge? = null
     private var dataCollectionJob: Job? = null
     private var settingSaveJob: Job? = null
+    private var devReloadJob: Job? = null
+    private var lastDevMtime: String? = null
 
     private var themeConfig: ThemeConfig? = null
     private var baseLayerSourceConfig: ThemeConfig? = null
@@ -141,6 +146,10 @@ class OverlayService : Service() {
     private var isInteractiveTheme: Boolean = false
     private var lastConnectedState: Boolean = false
     private var baseLayerWM: WindowManager? = null
+
+    /** Build the dev-mode theme path: `{console}/{profileId}/{themeId}` or flat `{themeId}`. */
+    private fun ThemeConfig.devThemePath(): String =
+        if (targetConsole != null) "$targetConsole/$targetProfileId/$id" else id
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -278,6 +287,8 @@ class OverlayService : Service() {
         // Synthesize base-layer widget and prepend to widget list
         val baseLayerWidget = baseLayerThemeConfig?.toBaseLayerWidget()
 
+        val appConfig = configManager.getAppConfig()
+
         // Create base-layer FIRST (z-order: behind everything)
         // Route to the correct display based on user's screen choice
         baseLayerWM = null
@@ -299,7 +310,7 @@ class OverlayService : Service() {
             } else {
                 windowManager
             }
-            createWidgetWindow(baseLayerThemeConfig!!, baseLayerWidget, null, interactive = isInteractiveTheme, wm = targetWM)
+            createWidgetWindow(baseLayerThemeConfig!!, baseLayerWidget, null, interactive = isInteractiveTheme, wm = targetWM, appConfig = appConfig)
         }
 
         // Mark dual-screen active when base-layer is on secondary display
@@ -312,7 +323,7 @@ class OverlayService : Service() {
 
         for (widget in primaryWidgets) {
             val layoutState = savedLayout?.widgets?.get(widget.id)
-            createWidgetWindow(config, widget, layoutState)
+            createWidgetWindow(config, widget, layoutState, appConfig = appConfig)
         }
 
         // ThemeOverlayChrome creation, after base-layer widget
@@ -342,14 +353,18 @@ class OverlayService : Service() {
         // In builder mode, always create it so the user can add widgets to the secondary screen
         val secondaryDisplay = DisplayHelper.getSecondaryDisplay(this)
         if (secondaryDisplay != null && (secondaryWidgets.isNotEmpty() || isBuilderMode || secondaryThemeConfig != null)) {
-            val secThemeId = secondaryThemeConfig?.id ?: config.id
-            val secAssetsPath = secondaryThemeConfig?.assetsPath ?: config.assetsPath
+            val secThemeConfig = secondaryThemeConfig ?: config
+            val secThemeId = secThemeConfig.id
+            val secAssetsPath = secThemeConfig.assetsPath
             val presentation = OverlayPresentation(
                 serviceContext = this,
                 display = secondaryDisplay,
                 themeId = secThemeId,
                 themesRootDir = File(configManager.getRootDir(), "themes"),
-                widgetsBasePath = secAssetsPath
+                devMode = appConfig.devMode,
+                devUrl = appConfig.devUrl,
+                widgetsBasePath = secAssetsPath,
+                devThemePath = secThemeConfig.devThemePath()
             )
             presentation.show()
 
@@ -377,9 +392,12 @@ class OverlayService : Service() {
 
         startDataCollection()
 
+        if (appConfig.devMode && appConfig.devUrl.isNotBlank()) {
+            startDevReloadPolling(appConfig.devUrl, config.devThemePath())
+        }
+
         // Wire JS bridge to all widget WebViews now that MemoryService exists
         memoryService?.let { ms ->
-            val appConfig = configManager.getAppConfig()
             val bridge = createBridge(config, ms, appConfig)
             overlayBridge = bridge
             for ((_, ww) in widgetViews) {
@@ -410,7 +428,9 @@ class OverlayService : Service() {
         widget: WidgetConfig,
         layoutState: WidgetLayoutState?,
         interactive: Boolean = false,
-        wm: WindowManager = windowManager
+        wm: WindowManager = windowManager,
+        appConfig: AppConfig = configManager.getAppConfig(),
+        devThemePath: String = themeConfig.devThemePath()
     ) {
         val isBase = widget.isBaseLayer
 
@@ -481,6 +501,9 @@ class OverlayService : Service() {
         }
 
         val interceptAssetsPath = widget.assetsPath
+        val interceptDevMode = appConfig.devMode
+        val interceptDevUrl = appConfig.devUrl
+        val interceptDevThemePath = devThemePath
         val webView = WebView(this).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -534,7 +557,7 @@ class OverlayService : Service() {
                     } else {
                         File(configManager.getRootDir(), "themes/${themeConfig.id}")
                     }
-                    WebInterceptor.intercept(url, baseDir)?.let { return it }
+                    WebInterceptor.intercept(url, baseDir, interceptDevMode, interceptDevUrl, interceptDevThemePath)?.let { return it }
                     return super.shouldInterceptRequest(view, request)
                 }
             }
@@ -581,6 +604,7 @@ class OverlayService : Service() {
             themesRootDir = File(configManager.getRootDir(), "themes"),
             devMode = appConfig.devMode,
             devUrl = appConfig.devUrl,
+            devThemePath = config.devThemePath(),
             assetsDir = config.assetsPath?.let { File(it) },
             onSave = if (isInteractiveTheme) { k, v -> handleThemeSettingChanged(k, v) } else null,
             onExit = if (isInteractiveTheme) { { exitInteractiveTheme() } } else null,
@@ -606,6 +630,41 @@ class OverlayService : Service() {
                         )
                     }
                     lastConnectedState = nowConnected
+                }
+            }
+        }
+    }
+
+    private fun startDevReloadPolling(devUrl: String, devThemePath: String) {
+        devReloadJob?.cancel()
+        lastDevMtime = null
+        devReloadJob = serviceScope.launch(Dispatchers.IO) {
+            val pollUrl = "${devUrl.removeSuffix("/")}/__dev_reload?path=themes/$devThemePath"
+            while (true) {
+                delay(OverlayConstants.DEV_RELOAD_POLL_INTERVAL_MS)
+                try {
+                    val conn = URL(pollUrl).openConnection() as HttpURLConnection
+                    conn.requestMethod = "GET"
+                    conn.connectTimeout = NetworkConstants.CONNECT_TIMEOUT_MS
+                    conn.readTimeout = NetworkConstants.READ_TIMEOUT_MS
+                    val code = conn.responseCode
+                    if (code == HttpURLConnection.HTTP_OK) {
+                        val body = conn.inputStream.bufferedReader().readText()
+                        val prev = lastDevMtime
+                        lastDevMtime = body
+                        // Skip first tick (prev == null) — only reload when mtime actually changes
+                        if (prev != null && body != prev) {
+                            withContext(Dispatchers.Main) {
+                                for ((_, ww) in widgetViews) {
+                                    ww.webView.reload()
+                                }
+                                overlayPresentation?.reloadAll()
+                            }
+                        }
+                    }
+                    conn.disconnect()
+                } catch (e: Exception) {
+                    if (BuildConfig.DEBUG) Log.d(TAG, "Dev reload poll failed: ${e.message}")
                 }
             }
         }
@@ -1612,12 +1671,13 @@ class OverlayService : Service() {
         secondaryWidgets = currentPrimaryWidgets.map { it.copy(screenTarget = ScreenTarget.SECONDARY) }
 
         // Re-create base-layer widget, swap to opposite screen
+        val swapAppConfig = configManager.getAppConfig()
         val baseLayerTheme = baseLayerSourceConfig
         val baseLayerWidget = baseLayerTheme?.toBaseLayerWidget()
         if (baseLayerWidget != null) {
             if (baseLayerWasOnSecondary) {
                 // Was on secondary → now goes to primary
-                createWidgetWindow(baseLayerTheme!!, baseLayerWidget, null, interactive = isInteractiveTheme)
+                createWidgetWindow(baseLayerTheme!!, baseLayerWidget, null, interactive = isInteractiveTheme, appConfig = swapAppConfig)
             } else {
                 // Was on primary → now goes to secondary
                 val secCtx = createWindowContext(
@@ -1627,7 +1687,7 @@ class OverlayService : Service() {
                 )
                 val secWM = secCtx.getSystemService(WINDOW_SERVICE) as WindowManager
                 baseLayerWM = secWM
-                createWidgetWindow(baseLayerTheme!!, baseLayerWidget, null, interactive = isInteractiveTheme, wm = secWM)
+                createWidgetWindow(baseLayerTheme!!, baseLayerWidget, null, interactive = isInteractiveTheme, wm = secWM, appConfig = swapAppConfig)
             }
         }
 
@@ -1641,7 +1701,7 @@ class OverlayService : Service() {
             val scaledState = sourceState?.let {
                 scaleLayoutState(it, secDims.widthDp, secDims.heightDp, primaryWidthDp, primaryHeightDp, swappedWidget)
             }
-            createWidgetWindow(secConfig, swappedWidget, scaledState)
+            createWidgetWindow(secConfig, swappedWidget, scaledState, appConfig = swapAppConfig)
         }
 
         // Recreate ThemeOverlayChrome pointing to new base-layer WebView
@@ -1667,7 +1727,10 @@ class OverlayService : Service() {
             display = secondaryDisplay,
             themeId = config.id,
             themesRootDir = File(configManager.getRootDir(), "themes"),
-            widgetsBasePath = config.assetsPath
+            devMode = swapAppConfig.devMode,
+            devUrl = swapAppConfig.devUrl,
+            widgetsBasePath = config.assetsPath,
+            devThemePath = config.devThemePath()
         )
         presentation.show()
 
@@ -1997,6 +2060,9 @@ class OverlayService : Service() {
     }
 
     private fun removeAllWidgets() {
+        devReloadJob?.cancel()
+        devReloadJob = null
+        lastDevMtime = null
         removeRecoveryPill()
         themeChrome?.dismiss()
         themeChrome = null

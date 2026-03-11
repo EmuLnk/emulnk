@@ -434,7 +434,6 @@ class MainActivity : ComponentActivity() {
                                 },
                                 confidence = currentConfidence,
                                 gameHash = gameHash,
-                                isDevMode = appConfig.devMode
                             )
                         }
                         is Screen.Gallery -> {

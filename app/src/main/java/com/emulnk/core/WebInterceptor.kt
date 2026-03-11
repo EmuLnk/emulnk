@@ -8,6 +8,8 @@ import com.emulnk.BuildConfig
 import com.emulnk.model.GameData
 import com.google.gson.Gson
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -31,6 +33,33 @@ object WebInterceptor {
 
     private fun cachedCanonicalPath(dir: File): String =
         canonicalPathCache.getOrPut(dir) { dir.canonicalPath }
+
+    fun intercept(url: String, baseDir: File, devMode: Boolean, devUrl: String, devThemePath: String): WebResourceResponse? {
+        if (devMode && devUrl.isNotBlank() && url.startsWith(SCHEME)) {
+            try {
+                val fileName = url.removePrefix(SCHEME)
+                val relativePath = if (fileName.isEmpty() || fileName == "/") "index.html" else fileName
+                if (relativePath.contains("..")) {
+                    if (BuildConfig.DEBUG) Log.w(TAG, "Path traversal blocked in dev URL: $relativePath")
+                    return null
+                }
+                val remoteUrl = "${devUrl.removeSuffix("/")}/themes/$devThemePath/$relativePath"
+                val conn = URL(remoteUrl).openConnection() as HttpURLConnection
+                conn.connectTimeout = NetworkConstants.CONNECT_TIMEOUT_MS
+                conn.readTimeout = NetworkConstants.READ_TIMEOUT_MS
+                if (conn.responseCode == HttpURLConnection.HTTP_OK) {
+                    val ext = relativePath.substringAfterLast('.', "").lowercase()
+                    val mimeType = MIME_MAP[ext] ?: "application/octet-stream"
+                    // Stream passed to WebView — connection closes when stream is consumed
+                    return WebResourceResponse(mimeType, "UTF-8", conn.inputStream)
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                if (BuildConfig.DEBUG) Log.d(TAG, "Dev server fetch failed, falling back to local: ${e.message}")
+            }
+        }
+        return intercept(url, baseDir)
+    }
 
     fun intercept(url: String, baseDir: File): WebResourceResponse? {
         if (!url.startsWith(SCHEME)) return null

@@ -30,6 +30,7 @@ class OverlayBridge(
     private val themesRootDir: File,
     private val devMode: Boolean = false,
     private val devUrl: String = "",
+    private val devThemePath: String = themeId,
     private val assetsDir: File? = null,
     private val onSave: ((String, String) -> Unit)? = null,
     private val onExit: (() -> Unit)? = null,
@@ -106,7 +107,7 @@ class OverlayBridge(
             scope.launch(Dispatchers.IO) {
                 try {
                     val baseUrl = devUrl.removeSuffix("/")
-                    val soundUrl = "$baseUrl/themes/$themeId/$fileName"
+                    val soundUrl = "$baseUrl/themes/$devThemePath/$fileName"
                     log("Dev: Fetching sound from $soundUrl")
                     val conn = java.net.URL(soundUrl).openConnection() as? java.net.HttpURLConnection ?: return@launch
                     var playbackStarted = false
@@ -114,7 +115,7 @@ class OverlayBridge(
                     try {
                         conn.connectTimeout = NetworkConstants.CONNECT_TIMEOUT_MS
                         conn.readTimeout = NetworkConstants.READ_TIMEOUT_MS
-                        if (conn.responseCode == 200) {
+                        if (conn.responseCode == java.net.HttpURLConnection.HTTP_OK) {
                             tempFile = File(context.cacheDir, "dev_sound_${System.currentTimeMillis()}")
                             conn.inputStream.use { input -> tempFile.outputStream().use { output -> input.copyTo(output) } }
                             withContext(Dispatchers.Main) { playLocalSound(tempFile) }

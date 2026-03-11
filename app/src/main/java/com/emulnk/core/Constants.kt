@@ -236,6 +236,9 @@ object OverlayConstants {
     /** Maximum alpha slider value as percentage */
     const val ALPHA_SLIDER_MAX_PERCENT = 100
 
+    /** Dev mode hot-reload polling interval in milliseconds */
+    const val DEV_RELOAD_POLL_INTERVAL_MS = 1000L
+
     /** Intent extra flag for interactive theme mode */
     const val EXTRA_INTERACTIVE_THEME = "interactive_theme"
 

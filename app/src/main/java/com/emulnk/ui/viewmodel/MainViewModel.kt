@@ -256,7 +256,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         entry?.label != null -> entry.label
                         else -> null
                     }
-                    refreshThemesForGame(gameId, console)
+                    if (_appConfig.value.devMode) {
+                        refreshThemesForDevMode()
+                    } else {
+                        refreshThemesForGame(gameId, console)
+                    }
                     if (_appConfig.value.autoBoot) {
                         if (romSwapped) delay(500) // let overlay service stop before reselection
                         autoSelectPair(gameId)
@@ -320,7 +324,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return@filter matchesGame && matchesConsole
             }
 
-            // Dev mode: all version-compatible themes
+            // Dev mode passes gameId=null → show all version-compatible themes
             true
         }
     }
@@ -362,6 +366,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             android.util.Log.d(TAG, "Dev Mode: Loading all ${allThemes.size} themes")
         }
         _availableThemes.value = filterThemes(allThemes, null, null)
+
+        val userOverlays = mutableListOf<ThemeConfig>()
+        for (saved in _savedOverlays.value) {
+            buildSavedOverlayThemeConfig(saved, saved.console ?: "")?.let { userOverlays.add(it) }
+        }
+        _userOverlayThemes.value = userOverlays
     }
 
     private fun stopOverlayService() {
@@ -600,7 +610,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         memoryService.updateState { it.copy(settings = currentSettings) }
 
-        // Mock data when no game is detected. devMode controls theme discovery, not data source
+        // devMode affects theme listing, not data — mock data is injected when no game is detected
         val shouldInjectMock = detectedGameId.value == null
 
         if (shouldInjectMock) {
@@ -702,7 +712,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val localPrefix = "themes/${theme.id}/"
         viewModelScope.launch(Dispatchers.IO) {
             val success = syncService.downloadAndExtract(
-                url = _appConfig.value.repoUrlShim,
+                url = getSyncUrl(),
                 stripRoot = true,
                 pathFilter = { path -> path.startsWith(themePrefix) },
                 pathRewriter = { path -> localPrefix + path.removePrefix(themePrefix) }
@@ -812,7 +822,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val localPrefix = "widgets/$profileId/"
         viewModelScope.launch(Dispatchers.IO) {
             val success = syncService.downloadAndExtract(
-                url = _appConfig.value.repoUrlShim,
+                url = getSyncUrl(),
                 stripRoot = true,
                 pathFilter = { path -> path.startsWith(widgetPrefix) },
                 pathRewriter = { path -> localPrefix + path.removePrefix(widgetPrefix) }
@@ -1072,6 +1082,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun getSyncUrl(): String {
+        val config = _appConfig.value
+        return if (config.devMode && config.devUrl.isNotBlank()) {
+            "${config.devUrl.removeSuffix("/")}/__dev_sync"
+        } else {
+            config.repoUrl
+        }
+    }
+
     fun syncRepository() {
         if (_isSyncing.value) return
         _isSyncing.value = true
@@ -1084,7 +1103,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch(Dispatchers.IO) {
             val success = syncService.downloadAndExtract(
-                url = _appConfig.value.repoUrlShim,
+                url = getSyncUrl(),
                 stripRoot = true,
                 pathFilter = { path ->
                     path == "index.json" ||
@@ -1106,6 +1125,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 configManager.loadHashRegistry()
                 refreshAllInstalledThemes()
 
+                // Re-resolve game profile with updated hash registry
+                val hash = memoryService.detectedGameHash.value
+                val gameId = detectedGameId.value
+                val console = detectedConsole.value
+                if (hash != null && gameId != null) {
+                    val resolver = configManager.createProfileResolver()
+                    val result = resolver.resolve(hash, gameId)
+                    _resolvedProfileId.value = result?.profile?.id
+                    _currentConfidence.value = result?.confidence ?: MatchConfidence.UNKNOWN
+                    val entry = result?.hashEntry
+                    _detectedGameLabel.value = when {
+                        entry?.label != null && entry.version != null -> "${entry.label} (${entry.version})"
+                        entry?.label != null -> entry.label
+                        else -> null
+                    }
+                }
+
                 try {
                     val repoUrl = _appConfig.value.repoUrlShim
                     _rawBaseUrl.value = syncService.deriveRawBaseUrl(repoUrl)
@@ -1115,10 +1151,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 viewModelScope.launch {
                     memoryService.stop()
                     memoryService.start(configManager.getConsoleConfigs())
-                    
-                    val gameId = detectedGameId.value
-                    val console = detectedConsole.value
-                    if (gameId != null && console != null) {
+
+                    if (_appConfig.value.devMode) {
+                        refreshThemesForDevMode()
+                    } else if (gameId != null && console != null) {
                         refreshThemesForGame(gameId, console)
                     }
                 }

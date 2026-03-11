@@ -67,8 +67,7 @@ fun LauncherScreen(
     showBuilderButton: Boolean = false,
     onLaunchBuilder: () -> Unit = {},
     confidence: MatchConfidence = MatchConfidence.MATCHED,
-    gameHash: String? = null,
-    isDevMode: Boolean = false
+    gameHash: String? = null
 ) {
     var showBundleSheet by remember { mutableStateOf(false) }
     var pendingTheme by remember { mutableStateOf<ThemeConfig?>(null) }
@@ -161,7 +160,7 @@ fun LauncherScreen(
             }
         }
 
-        if (isDevMode && gameHash != null) {
+        if (appConfig.devMode && gameHash != null) {
             val clipboardManager = LocalClipboardManager.current
             Row(
                 verticalAlignment = Alignment.CenterVertically,

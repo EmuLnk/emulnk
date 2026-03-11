@@ -301,6 +301,7 @@ fun AppSettingsDialog(
 
     val dismissAndSave = {
         if (repoUrlText != appConfig.repoUrl) onSetRepoUrl(repoUrlText)
+        if (devUrlText != appConfig.devUrl) onSetDevUrl(devUrlText)
         onDismiss()
     }
     Dialog(onDismissRequest = dismissAndSave) {
@@ -408,10 +409,7 @@ fun AppSettingsDialog(
                     Spacer(modifier = Modifier.height(EmuLnkDimens.spacingSm))
                     OutlinedTextField(
                         value = devUrlText,
-                        onValueChange = {
-                            devUrlText = it
-                            onSetDevUrl(it)
-                        },
+                        onValueChange = { devUrlText = it },
                         label = { Text("Dev Server URL", color = TextSecondary) },
                         modifier = Modifier.fillMaxWidth(),
                         textStyle = TextStyle(fontSize = 12.sp, color = TextPrimary),
