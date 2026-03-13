@@ -58,6 +58,12 @@ class SyncService(private var rootDir: File) {
     }
 
     fun deriveRawBaseUrl(archiveUrl: String): String {
+        // releases URL: https://github.com/{owner}/{repo}/releases/latest/download/{file}.zip
+        val releasesMatch = Regex("github\\.com/([^/]+/[^/]+)/releases/").find(archiveUrl)
+        if (releasesMatch != null) {
+            return "https://raw.githubusercontent.com/${releasesMatch.groupValues[1]}/main"
+        }
+        // archive URL: https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip
         return archiveUrl
             .replace(Regex("archive/refs/heads/(.+)\\.zip"), "raw/$1")
             .trimEnd('/')
