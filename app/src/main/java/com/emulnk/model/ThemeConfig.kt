@@ -69,8 +69,10 @@ data class ThemeMeta(
  */
 data class ThemeSettingSchema(
     val id: String,          // e.g., "show_rupees"
-    val label: String,       // e.g., "Show Rupee Counter"
+    val label: String? = null, // e.g., "Show Rupee Counter" (null for hidden settings like nuzlocke-data)
     val type: String,        // "toggle", "color", "select"
     val default: String,     // Default value as string
-    val options: List<String>? = null // For "select" type
+    val options: List<String>? = null, // For "select" type
+    val category: String? = null, // e.g., "Party", "Battle" — groups settings in UI
+    val hidden: Boolean? = null // Hidden settings are not shown in the settings dialog
 )

@@ -2,6 +2,7 @@ package com.emulnk.ui.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
@@ -203,19 +205,61 @@ fun ThemeSettingsDialog(
             Column(modifier = Modifier.padding(EmuLnkDimens.spacingXl)) {
                 Text("${theme.meta.name} Settings", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Spacer(modifier = Modifier.height(EmuLnkDimens.spacingLg))
-                theme.settings?.forEach { schema ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = EmuLnkDimens.spacingSm),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+
+                val visibleSettings = remember(theme.settings) {
+                    theme.settings?.filter { it.hidden != true } ?: emptyList()
+                }
+                val categories = remember(visibleSettings) {
+                    visibleSettings.groupBy { it.category ?: "General" }
+                }
+                val hasMultipleCategories = categories.size > 1
+                val expandedCategories = remember { mutableStateMapOf<String, Boolean>() }
+
+                categories.forEach { (category, catSettings) ->
+                    if (hasMultipleCategories) {
+                        val isExpanded = expandedCategories[category] ?: true
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { expandedCategories[category] = !isExpanded }
+                                .padding(vertical = EmuLnkDimens.spacingSm),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (isExpanded) "\u25BC " else "\u25B6 ",
+                                fontSize = 12.sp,
+                                color = TextSecondary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = category.uppercase(),
+                                fontSize = 12.sp,
+                                color = TextSecondary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    AnimatedVisibility(
+                        visible = !hasMultipleCategories || expandedCategories[category] != false
                     ) {
-                        Text(schema.label, fontSize = 14.sp, color = TextPrimary)
-                        if (schema.type == "toggle") {
-                            val checked = currentSettings[schema.id] == "true"
-                            Switch(checked = checked, onCheckedChange = { onUpdate(schema.id, it.toString()) })
+                        Column {
+                            catSettings.forEach { schema ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = EmuLnkDimens.spacingSm),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(schema.label ?: schema.id, fontSize = 14.sp, color = TextPrimary)
+                                    if (schema.type == "toggle") {
+                                        val checked = currentSettings[schema.id] == "true"
+                                        Switch(checked = checked, onCheckedChange = { onUpdate(schema.id, it.toString()) })
+                                    }
+                                }
+                            }
                         }
                     }
                 }
+
                 Spacer(modifier = Modifier.height(EmuLnkDimens.spacingXl))
                 Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = BrandPurple)) {
                     Text("Close", color = TextPrimary)

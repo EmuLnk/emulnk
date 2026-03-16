@@ -12,6 +12,7 @@ import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -106,14 +107,17 @@ class ThemeOverlayChrome(
         handler?.post {
             debugTextView?.let { tv ->
                 tv.append("$message\n")
-                (tv.parent as? ScrollView)?.fullScroll(View.FOCUS_DOWN)
+                // TextView is inside HorizontalScrollView inside ScrollView
+                (tv.parent as? HorizontalScrollView)?.let { hScroll ->
+                    (hScroll.parent as? ScrollView)?.fullScroll(View.FOCUS_DOWN)
+                }
             }
         }
     }
 
     fun showSettingsDialog() {
         if (settingsDialog != null) return
-        val settings = themeConfig.settings
+        val settings = themeConfig.settings?.filter { it.hidden != true }
         if (settings.isNullOrEmpty()) return
 
         // Scrim
@@ -154,16 +158,31 @@ class ThemeOverlayChrome(
             textSize = 18f
         })
 
-        val currentVals = currentSettings()
+        val currentVals = currentSettings().toMutableMap()
 
-        for (setting in settings) {
-            card.addView(createSettingRow(setting, currentVals[setting.id] ?: setting.default),
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply { topMargin = 12 * dp }
-            )
+        // Settings container inside a ScrollView
+        val settingsContainer = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
         }
+
+        val categories = settings.groupBy { it.category ?: "General" }
+        val hasMultipleCategories = categories.size > 1
+        val expandedCategories = categories.keys.toMutableSet() // all expanded by default
+
+        // Cap scroll area at 60% of screen to leave room for title, button, and padding
+        val displayMetrics = getDisplayMetrics()
+        val maxScrollHeight = (displayMetrics.heightPixels * 0.6f).toInt()
+
+        val scrollView = ScrollView(context).apply {
+            addView(settingsContainer)
+        }
+
+        rebuildSettingsContent(settingsContainer, settings, currentVals, expandedCategories, hasMultipleCategories, scrollView, maxScrollHeight)
+
+        card.addView(scrollView, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ))
 
         // Close button
         val closeBg = GradientDrawable().apply {
@@ -183,6 +202,8 @@ class ThemeOverlayChrome(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = 16 * dp })
+
+        capScrollViewHeight(scrollView, maxScrollHeight)
 
         val dialogParams = WindowManager.LayoutParams(
             (280 * density).toInt(),
@@ -285,7 +306,7 @@ class ThemeOverlayChrome(
             dismissMenu()
         })
 
-        if (!themeConfig.settings.isNullOrEmpty()) {
+        if (themeConfig.settings?.any { it.hidden != true } == true) {
             menuItems.add(createMenuItemButton(R.drawable.ic_settings, context.getString(R.string.theme_chrome_settings)) {
                 dismissMenu()
                 showSettingsDialog()
@@ -384,14 +405,18 @@ class ThemeOverlayChrome(
     }
 
     @SuppressLint("UseSwitchCompatOrMaterialCode")
-    private fun createSettingRow(setting: ThemeSettingSchema, currentValue: String): LinearLayout {
+    private fun createSettingRow(
+        setting: ThemeSettingSchema,
+        currentValue: String,
+        currentVals: MutableMap<String, String>
+    ): LinearLayout {
         val dp = density.toInt()
         return LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
 
             addView(TextView(context).apply {
-                text = setting.label
+                text = setting.label ?: setting.id
                 setTextColor(UiColors.TEXT_PRIMARY)
                 textSize = 14f
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
@@ -410,7 +435,9 @@ class ThemeOverlayChrome(
                             intArrayOf(UiColors.TEXT_PRIMARY, UiColors.TEXT_SECONDARY)
                         )
                         setOnCheckedChangeListener { _, checked ->
-                            onSettingChanged(setting.id, checked.toString())
+                            val value = checked.toString()
+                            currentVals[setting.id] = value
+                            onSettingChanged(setting.id, value)
                         }
                     })
                 }
@@ -422,6 +449,88 @@ class ThemeOverlayChrome(
                     })
                 }
             }
+        }
+    }
+
+    private fun rebuildSettingsContent(
+        container: LinearLayout,
+        settings: List<ThemeSettingSchema>,
+        currentVals: MutableMap<String, String>,
+        expandedCategories: MutableSet<String>,
+        hasMultipleCategories: Boolean,
+        scrollView: ScrollView,
+        maxScrollHeight: Int
+    ) {
+        container.removeAllViews()
+        val dp = density.toInt()
+        val categories = settings.groupBy { it.category ?: "General" }
+
+        for ((category, catSettings) in categories) {
+            if (hasMultipleCategories) {
+                val isExpanded = category in expandedCategories
+                container.addView(
+                    createCategoryHeader(category, isExpanded) {
+                        if (category in expandedCategories) expandedCategories.remove(category)
+                        else expandedCategories.add(category)
+                        rebuildSettingsContent(container, settings, currentVals, expandedCategories, hasMultipleCategories, scrollView, maxScrollHeight)
+                    },
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { topMargin = 12 * dp }
+                )
+                if (!isExpanded) continue
+            }
+
+            for (setting in catSettings) {
+                container.addView(
+                    createSettingRow(setting, currentVals[setting.id] ?: setting.default, currentVals),
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { topMargin = 12 * dp }
+                )
+            }
+        }
+        capScrollViewHeight(scrollView, maxScrollHeight)
+    }
+
+    private fun createCategoryHeader(
+        category: String,
+        isExpanded: Boolean,
+        onToggle: () -> Unit
+    ): LinearLayout {
+        val dp = density.toInt()
+        val cornerRadius = 6 * density
+        val pressedBg = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            setColor(UiColors.SURFACE_OVERLAY)
+            this.cornerRadius = cornerRadius
+        }
+        val normalBg = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            setColor(android.graphics.Color.TRANSPARENT)
+            this.cornerRadius = cornerRadius
+        }
+        val stateList = StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_pressed), pressedBg)
+            addState(intArrayOf(), normalBg)
+        }
+        val triangle = if (isExpanded) "\u25BC " else "\u25B6 " // ▼ or ▶
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(4 * dp, 4 * dp, 4 * dp, 4 * dp)
+            background = stateList
+            isClickable = true
+            setOnClickListener { onToggle() }
+
+            addView(TextView(context).apply {
+                text = "$triangle${category.uppercase()}"
+                setTextColor(UiColors.TEXT_SECONDARY)
+                textSize = 12f
+                typeface = Typeface.DEFAULT_BOLD
+            })
         }
     }
 
@@ -444,7 +553,9 @@ class ThemeOverlayChrome(
         isDebugVisible = true
 
         val dp = density.toInt()
-        val screenWidth = context.resources.displayMetrics.widthPixels
+        // Use windowManager.defaultDisplay for correct screen width (may be secondary display)
+        val displayMetrics = getDisplayMetrics()
+        val screenWidth = displayMetrics.widthPixels
         val consoleBg = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             setColor(0xE60E0C1C.toInt()) // SurfaceBase 90% alpha, unique alpha variant
@@ -457,12 +568,17 @@ class ThemeOverlayChrome(
             textSize = 10f
             typeface = Typeface.MONOSPACE
             setPadding(8 * dp, 8 * dp, 8 * dp, 8 * dp)
+            setHorizontallyScrolling(true)
         }
         debugTextView = tv
 
+        val hScroll = HorizontalScrollView(context).apply {
+            addView(tv)
+        }
+
         val scrollView = ScrollView(context).apply {
             background = consoleBg
-            addView(tv)
+            addView(hScroll)
         }
 
         val params = WindowManager.LayoutParams(
@@ -526,6 +642,24 @@ class ThemeOverlayChrome(
             }
         }
     }
+
+    private fun capScrollViewHeight(scrollView: ScrollView, maxHeight: Int) {
+        scrollView.post {
+            val lp = scrollView.layoutParams
+            if (scrollView.height > maxHeight) {
+                lp.height = maxHeight
+            } else {
+                lp.height = LinearLayout.LayoutParams.WRAP_CONTENT
+            }
+            scrollView.requestLayout()
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun getDisplayMetrics(): android.util.DisplayMetrics =
+        android.util.DisplayMetrics().also {
+            windowManager.defaultDisplay.getRealMetrics(it)
+        }
 
     private fun removeView(view: View?) {
         windowManager.safeRemoveView(view)
