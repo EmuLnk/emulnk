@@ -1048,13 +1048,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun saveOverlayIcon(overlayId: String, uri: android.net.Uri, contentResolver: android.content.ContentResolver) {
-        try {
-            val iconFile = java.io.File(configManager.getUserOverlaysDir(), "${overlayId}_icon.png")
-            contentResolver.openInputStream(uri)?.use { input ->
-                iconFile.outputStream().use { output -> input.copyTo(output) }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val mime = contentResolver.getType(uri)
+                val ext = android.webkit.MimeTypeMap.getSingleton()
+                    .getExtensionFromMimeType(mime)
+                    .takeIf { it in SavedOverlayConfig.ICON_EXTENSIONS }
+                    ?: "png"
+                // Remove any previous icon in other formats
+                SavedOverlayConfig.ICON_EXTENSIONS.forEach { e ->
+                    java.io.File(configManager.getUserOverlaysDir(), "${overlayId}_icon.$e").delete()
+                }
+                val iconFile = java.io.File(configManager.getUserOverlaysDir(), "${overlayId}_icon.$ext")
+                contentResolver.openInputStream(uri)?.use { input ->
+                    iconFile.outputStream().use { output -> input.copyTo(output) }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to save overlay icon: ${e.message}")
             }
-        } catch (e: Exception) {
-            Log.w("MainViewModel", "Failed to save overlay icon: ${e.message}")
         }
     }
 

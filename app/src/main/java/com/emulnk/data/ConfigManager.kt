@@ -560,8 +560,10 @@ class ConfigManager(private val context: android.content.Context) {
         synchronized(configLock) {
             val configFile = File(userOverlaysDir, "$id.json")
             val deleted = configFile.delete()
-            // Clean up associated icon and layout files
-            File(userOverlaysDir, "${id}_icon.png").delete()
+            // Clean up associated icon (any format) and layout files
+            SavedOverlayConfig.ICON_EXTENSIONS.forEach { ext ->
+                File(userOverlaysDir, "${id}_icon.$ext").delete()
+            }
             savesDir.listFiles { f -> f.name.startsWith("${id}_layout") }?.forEach { it.delete() }
             return deleted
         }

@@ -9,20 +9,29 @@ data class SavedOverlayConfig(
     val console: String? = null,
     val selectedWidgetIds: List<String>,
     val screenAssignments: Map<String, ScreenTarget> = emptyMap(),
-    val createdAt: Long = System.currentTimeMillis(),
-    val iconPath: String? = null
+    val createdAt: Long = System.currentTimeMillis()
 ) {
     companion object {
         /** Prefix for user-created overlay IDs */
         const val ID_PREFIX = "uo_"
 
-        /** Returns the icon file path for a given user overlay ID */
-        fun iconPath(id: String): String = "user_overlays/${id}_icon.png"
+        /** Supported icon/preview extensions in priority order */
+        internal val ICON_EXTENSIONS = listOf("svg", "webp", "png")
 
-        /** Resolves the preview image: user icon if it exists, otherwise the theme's preview.png */
+        /** Returns the first existing icon file for a user overlay, or the png path as default */
+        fun resolveIconFile(rootPath: String, id: String): File {
+            val dir = File(rootPath, "user_overlays")
+            return ICON_EXTENSIONS.map { File(dir, "${id}_icon.$it") }.firstOrNull { it.exists() }
+                ?: File(dir, "${id}_icon.png")
+        }
+
+        /** Resolves the preview image: user icon if it exists, otherwise the theme's preview */
         fun resolvePreviewFile(rootPath: String, themeId: String): File {
-            val userIcon = File(rootPath, iconPath(themeId))
-            return if (userIcon.exists()) userIcon else File(rootPath, "themes/$themeId/preview.png")
+            val userIcon = resolveIconFile(rootPath, themeId)
+            if (userIcon.exists()) return userIcon
+            val themeDir = File(rootPath, "themes/$themeId")
+            return ICON_EXTENSIONS.map { File(themeDir, "preview.$it") }.firstOrNull { it.exists() }
+                ?: File(themeDir, "preview.png")
         }
     }
 }

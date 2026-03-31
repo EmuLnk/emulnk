@@ -2,12 +2,15 @@ package com.emulnk
 
 import android.app.Application
 import android.util.Log
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import coil.decode.SvgDecoder
 import com.emulnk.core.MemoryService
 import com.emulnk.data.ConfigManager
 import com.emulnk.data.MemoryRepository
 import com.emulnk.model.AppConfig
 
-class EmuLnkApplication : Application() {
+class EmuLnkApplication : Application(), ImageLoaderFactory {
     val memoryService: MemoryService by lazy {
         val host = try {
             ConfigManager(this).getAppConfig().emulatorHost
@@ -17,4 +20,9 @@ class EmuLnkApplication : Application() {
         }
         MemoryService(MemoryRepository(host = host))
     }
+
+    override fun newImageLoader(): ImageLoader =
+        ImageLoader.Builder(this)
+            .components { add(SvgDecoder.Factory()) }
+            .build()
 }
