@@ -441,6 +441,31 @@ class ThemeOverlayChrome(
                         }
                     })
                 }
+                "select" -> {
+                    val options = setting.options ?: emptyList()
+                    val tv = TextView(context).apply {
+                        text = currentValue
+                        setTextColor(UiColors.BRAND_PURPLE)
+                        textSize = 14f
+                        setPadding(8 * dp, 4 * dp, 8 * dp, 4 * dp)
+                    }
+                    tv.setOnClickListener { anchor ->
+                        if (options.isEmpty()) return@setOnClickListener
+                        val popup = android.widget.PopupMenu(context, anchor)
+                        options.forEachIndexed { idx, opt ->
+                            popup.menu.add(0, idx, idx, opt)
+                        }
+                        popup.setOnMenuItemClickListener { item ->
+                            val value = options[item.itemId]
+                            tv.text = value
+                            currentVals[setting.id] = value
+                            onSettingChanged(setting.id, value)
+                            true
+                        }
+                        popup.show()
+                    }
+                    addView(tv)
+                }
                 else -> {
                     addView(TextView(context).apply {
                         text = currentValue

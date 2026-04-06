@@ -253,6 +253,30 @@ fun ThemeSettingsDialog(
                                     if (schema.type == "toggle") {
                                         val checked = currentSettings[schema.id] == "true"
                                         Switch(checked = checked, onCheckedChange = { onUpdate(schema.id, it.toString()) })
+                                    } else if (schema.type == "select" && schema.options != null) {
+                                        var expanded by remember { mutableStateOf(false) }
+                                        val current = currentSettings[schema.id] ?: schema.default
+                                        Box {
+                                            Text(
+                                                text = current,
+                                                fontSize = 14.sp,
+                                                color = BrandPurple,
+                                                modifier = Modifier
+                                                    .clickable { expanded = true }
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                                schema.options.forEach { option ->
+                                                    DropdownMenuItem(
+                                                        text = { Text(option) },
+                                                        onClick = {
+                                                            onUpdate(schema.id, option)
+                                                            expanded = false
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
