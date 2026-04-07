@@ -1,4 +1,4 @@
-package com.emulnk.model
+package com.emulnk.core.model
 
 data class GameData(
     val isConnected: Boolean = false,

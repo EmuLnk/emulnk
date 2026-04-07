@@ -5,9 +5,9 @@ import android.util.Log
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.decode.SvgDecoder
-import com.emulnk.core.MemoryService
+import com.emulnk.core.memory.MemoryRepository
+import com.emulnk.core.memory.MemoryService
 import com.emulnk.data.ConfigManager
-import com.emulnk.data.MemoryRepository
 import com.emulnk.model.AppConfig
 
 class EmuLnkApplication : Application(), ImageLoaderFactory {

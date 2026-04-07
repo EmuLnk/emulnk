@@ -23,12 +23,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.emulnk.R
+import com.emulnk.core.model.MatchConfidence
 import com.emulnk.model.AppConfig
 import com.emulnk.model.ThemeConfig
 import com.emulnk.model.ThemeType
 import com.emulnk.model.resolvedType
 import com.emulnk.model.SavedOverlayConfig
-import com.emulnk.model.MatchConfidence
 import com.emulnk.ui.components.PairingBottomSheet
 import com.emulnk.ui.components.ThemeCard
 import com.emulnk.ui.theme.*

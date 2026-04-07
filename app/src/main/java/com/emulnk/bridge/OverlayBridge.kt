@@ -7,8 +7,8 @@ import android.os.VibratorManager
 import android.webkit.JavascriptInterface
 import com.emulnk.BuildConfig
 import com.emulnk.core.BridgeConstants
-import com.emulnk.core.MemoryService
 import com.emulnk.core.NetworkConstants
+import com.emulnk.core.memory.MemoryService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

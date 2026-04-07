@@ -4,8 +4,8 @@ import android.content.Context
 import android.os.BatteryManager
 import android.util.Log
 import com.emulnk.BuildConfig
-import com.emulnk.model.BatteryInfo
-import com.emulnk.model.ThermalInfo
+import com.emulnk.core.model.BatteryInfo
+import com.emulnk.core.model.ThermalInfo
 import java.io.File
 
 /**

@@ -1,4 +1,4 @@
-package com.emulnk.model
+package com.emulnk.core.model
 
 /**
  * Configuration for a specific console/emulator mode.
