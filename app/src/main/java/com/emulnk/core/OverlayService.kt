@@ -35,9 +35,10 @@ import com.emulnk.R
 import com.emulnk.bridge.OverlayBridge
 import com.emulnk.data.ConfigManager
 import com.emulnk.EmuLnkApplication
+import com.emulnk.core.memory.MemoryService
 import com.emulnk.model.AppConfig
 import com.emulnk.model.CustomOverlayConfig
-import com.emulnk.model.GameData
+import com.emulnk.core.model.GameData
 import com.emulnk.model.OverlayLayout
 import com.emulnk.model.ScreenTarget
 import com.emulnk.model.resolvedScreenTarget

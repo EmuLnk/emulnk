@@ -5,7 +5,7 @@ import android.util.Log
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import com.emulnk.BuildConfig
-import com.emulnk.model.GameData
+import com.emulnk.core.model.GameData
 import com.google.gson.Gson
 import java.io.File
 import java.net.HttpURLConnection

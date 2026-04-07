@@ -1,19 +1,30 @@
 [versions]
 agp = "8.7.3"
-kotlin = "2.0.21"
+kermit = "2.1.0"
+kotlin = "2.3.20"
 coreKtx = "1.15.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
+kotlinArgparser = "2.0.7"
+kotlinxCoroutinesCore = "1.10.2"
+ktor = "3.4.1"
 lifecycle = "2.8.7"
 activityCompose = "1.9.3"
 composeBom = "2024.10.01"
 okhttp = "4.12.0"
 coil = "2.7.0"
+slf4jSimple = "2.0.17"
 
 [libraries]
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 coil-svg = { group = "io.coil-kt", name = "coil-svg", version.ref = "coil" }
+kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
+kotlin-argparser = { module = "com.xenomachina:kotlin-argparser", version.ref = "kotlinArgparser" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutinesCore" }
+ktor-server-websockets = { module = "io.ktor:ktor-server-websockets", version.ref = "ktor" }
+ktor-server-netty = { module = "io.ktor:ktor-server-netty", version.ref = "ktor" }
+ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -29,6 +40,7 @@ androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
 androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4jSimple" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

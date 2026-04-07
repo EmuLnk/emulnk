@@ -5,7 +5,6 @@ import android.content.Context
 import android.graphics.PixelFormat
 import android.util.Log
 import android.view.Display
-import android.view.MotionEvent
 import android.view.View
 import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
@@ -17,7 +16,7 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import com.emulnk.BuildConfig
 import com.emulnk.bridge.OverlayBridge
-import com.emulnk.model.GameData
+import com.emulnk.core.model.GameData
 import com.emulnk.model.ScreenTarget
 import com.emulnk.model.WidgetConfig
 import com.emulnk.model.WidgetLayoutState

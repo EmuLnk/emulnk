@@ -5,7 +5,7 @@ import android.util.Log
 import androidx.core.content.edit
 import com.emulnk.BuildConfig
 import com.emulnk.model.AppConfig
-import com.emulnk.model.ConsoleConfig
+import com.emulnk.core.model.ConsoleConfig
 import com.emulnk.model.CustomOverlayConfig
 import com.emulnk.core.model.HashEntry
 import com.emulnk.core.model.ProfileConfig
@@ -17,6 +17,7 @@ import com.emulnk.model.StoreWidget
 import com.emulnk.model.ThemeConfig
 import com.google.gson.Gson
 import com.emulnk.core.ConfigConstants
+import com.emulnk.core.constants.ConsoleConfigDefaults
 import com.google.gson.reflect.TypeToken
 import java.io.File
 
@@ -256,22 +257,7 @@ class ConfigManager(private val context: android.content.Context) {
     }
 
     private fun createDefaultConsoles(save: Boolean = true): List<ConsoleConfig> {
-        val defaults = listOf(
-            ConsoleConfig(
-                id = "dolphin_gcn",
-                name = "Dolphin (GameCube)",
-                packageNames = listOf("org.emulnk.dolphinlnk"),
-                console = "GCN",
-                port = 55355
-            ),
-            ConsoleConfig(
-                id = "dolphin_wii",
-                name = "Dolphin (Wii)",
-                packageNames = listOf("org.emulnk.dolphinlnk"),
-                console = "WII",
-                port = 55355
-            )
-        )
+        val defaults = ConsoleConfigDefaults
         if (save) {
             try {
                 consolesFile.writeText(gson.toJson(defaults))
