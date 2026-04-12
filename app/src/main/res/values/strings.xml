@@ -43,6 +43,7 @@
     <string name="import_theme">Import</string>
     <string name="search_themes">Search themes…</string>
     <string name="no_themes_found">No themes found</string>
+    <string name="gallery_failed_to_load">Failed to load community themes.\nPlease sync the repository.</string>
     <string name="theme_count">%1$d themes</string>
     <string name="browse_all">Browse All</string>
 

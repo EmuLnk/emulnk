@@ -21,6 +21,8 @@ import com.emulnk.model.GameData
 import com.emulnk.model.OverlayBundle
 import com.emulnk.data.MigrationManager
 import com.emulnk.model.CustomOverlayConfig
+import com.emulnk.model.GalleryConsole
+import com.emulnk.model.GalleryGame
 import com.emulnk.model.GalleryIndex
 import com.emulnk.model.GalleryTheme
 import com.emulnk.model.SavedOverlayConfig
@@ -749,8 +751,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val repoUrl = _appConfig.value.repoUrlShim
             _rawBaseUrl.value = syncService.deriveRawBaseUrl(repoUrl)
             val index = syncService.fetchRepoIndex(repoUrl)
-            _repoIndex.value = index
+            _repoIndex.value = if (index?.consoles?.isNotEmpty() == true) index else buildFallbackGalleryIndex(_allInstalledThemes.value)
         }
+    }
+
+    private fun buildFallbackGalleryIndex(installedThemes: List<ThemeConfig>): GalleryIndex {
+        val consoles = installedThemes
+            .groupBy { it.targetConsole ?: "UNKNOWN" }
+            .map { (consoleId, themesForConsole) ->
+                val games = themesForConsole
+                    .groupBy { it.targetProfileId }
+                    .map { (profileId, themesForGame) ->
+                        GalleryGame(
+                            profileId = profileId,
+                            name = profileId, 
+                            console = consoleId,
+                            hasWidgets = false,
+                            themes = themesForGame.map { t ->
+                                GalleryTheme(
+                                    id = t.id.removePrefix("${profileId}_"),
+                                    name = t.meta.name,
+                                    author = t.meta.author,
+                                    version = t.meta.version,
+                                    description = t.meta.description ?: "",
+                                    type = t.resolvedType,
+                                    tags = emptyList(),
+                                    minAppVersion = t.meta.minAppVersion ?: 1,
+                                    previewUrl = "",
+                                    console = consoleId,
+                                    profileId = profileId,
+                                    gameName = profileId
+                                )
+                            }
+                        )
+                    }
+                GalleryConsole(id = consoleId, games = games)
+            }
+        return GalleryIndex(consoles = consoles)
     }
 
     fun downloadTheme(theme: GalleryTheme) {
@@ -1234,7 +1271,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 try {
                     val repoUrl = _appConfig.value.repoUrlShim
                     _rawBaseUrl.value = syncService.deriveRawBaseUrl(repoUrl)
-                    _repoIndex.value = syncService.fetchRepoIndex(repoUrl)
+                    val rIndex = syncService.fetchRepoIndex(repoUrl)
+                    _repoIndex.value = if (rIndex?.consoles?.isNotEmpty() == true) rIndex else buildFallbackGalleryIndex(_allInstalledThemes.value)
                 } catch (_: Exception) {}
 
                 _syncSuccess.value = true

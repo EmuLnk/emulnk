@@ -374,37 +374,53 @@ private fun ConsoleListView(
                 TagChipRow(visibleTags, selectedTags, onTagToggle)
             }
         }
-        items(filteredConsoles) { console ->
-            val themeCount = console.games.sumOf { it.themes.size }
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = SurfaceRaised),
-                shape = RoundedCornerShape(EmuLnkDimens.cornerMd),
-                onClick = { onSelectConsole(console) }
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(EmuLnkDimens.spacingSm),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Box(
-                        modifier = Modifier.size(36.dp).clip(RoundedCornerShape(EmuLnkDimens.cornerSm)).background(SurfaceBase),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val iconUrl = "$rawBaseUrl/icons/${console.id}.webp"
-                        AsyncImage(
-                            model = iconUrl,
-                            contentDescription = console.id,
-                            modifier = Modifier.fillMaxSize().padding(4.dp),
-                            contentScale = ContentScale.Fit
+        if (filteredConsoles.isEmpty() && searchQuery.isEmpty() && visibleTags.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Box(modifier = Modifier.fillMaxWidth().padding(EmuLnkDimens.spacingXl), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(EmuLnkDimens.spacingMd)) {
+                        Icon(painter = painterResource(R.drawable.ic_sync), contentDescription = null, tint = TextSecondary, modifier = Modifier.size(48.dp))
+                        Text(
+                            stringResource(R.string.gallery_failed_to_load), 
+                            color = TextSecondary, 
+                            fontSize = 14.sp, 
+                            textAlign = TextAlign.Center 
                         )
                     }
-                    Text(console.id, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 13.sp, modifier = Modifier.padding(top = EmuLnkDimens.spacingSm))
-                    Text(
-                        stringResource(R.string.theme_count, themeCount),
-                        fontSize = 11.sp,
-                        color = TextSecondary
-                    )
+                }
+            }
+        } else {
+            items(filteredConsoles) { console ->
+                val themeCount = console.games.sumOf { it.themes.size }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceRaised),
+                    shape = RoundedCornerShape(EmuLnkDimens.cornerMd),
+                    onClick = { onSelectConsole(console) }
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(EmuLnkDimens.spacingSm),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Box(
+                            modifier = Modifier.size(56.dp).clip(RoundedCornerShape(EmuLnkDimens.cornerSm)).background(SurfaceBase),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val iconUrl = "file:///android_asset/icons/${console.id.uppercase()}.svg"
+                            AsyncImage(
+                                model = iconUrl,
+                                contentDescription = console.id,
+                                modifier = Modifier.fillMaxSize().padding(6.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
+                        Text(console.id, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 13.sp, modifier = Modifier.padding(top = EmuLnkDimens.spacingSm))
+                        Text(
+                            stringResource(R.string.theme_count, themeCount),
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
                 }
             }
         }

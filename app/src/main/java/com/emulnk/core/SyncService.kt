@@ -103,9 +103,27 @@ class SyncService(private var rootDir: File) {
 
     suspend fun fetchRepoIndex(baseUrl: String): GalleryIndex? {
         val url = deriveRawBaseUrl(baseUrl) + "/index.json"
-        return fetchJsonWithRetry(url, "Index") { json ->
+        
+        // Try network fetch
+        val remoteIndex = fetchJsonWithRetry(url, "Index") { json ->
             mapToGalleryIndex(gson.fromJson(json, RepoIndexV2::class.java))
         }
+        
+        if (remoteIndex != null) return remoteIndex
+        
+        // Local Fallback: Try reading from rootDir/index.json
+        try {
+            val localIndexFile = File(rootDir, "index.json")
+            if (localIndexFile.exists()) {
+                Log.i(TAG, "Network fetch failed, falling back to local index.json")
+                val json = localIndexFile.readText()
+                return mapToGalleryIndex(gson.fromJson(json, RepoIndexV2::class.java))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to read local index fallback", e)
+        }
+        
+        return null
     }
 
     private fun mapToGalleryIndex(v2: RepoIndexV2): GalleryIndex {
