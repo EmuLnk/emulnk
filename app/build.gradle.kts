@@ -7,13 +7,12 @@ plugins {
 android {
     namespace = "com.emulnk"
     compileSdk = 35
-
     defaultConfig {
         applicationId = "com.emulnk"
         minSdk = 33
         targetSdk = 35
-        versionCode = 14
-        versionName = "0.5.9"
+        versionCode = 15
+        versionName = "0.5.10"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
