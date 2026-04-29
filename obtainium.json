@@ -12,7 +12,7 @@
       "overrideSource": "GitHub"
     },
     {
-      "id": "com.emulnk.retroarch",
+      "id": "com.retroarch.lnk.aarch64",
       "url": "https://github.com/EmuLnk/retroarch-lnk",
       "author": "EmuLnk",
       "name": "RetroArch (EmuLnk)",
@@ -23,7 +23,7 @@
       "overrideSource": "GitHub"
     },
     {
-      "id": "com.emulnk.dolphin",
+      "id": "org.emulnk.dolphinlnk",
       "url": "https://github.com/EmuLnk/dolphin-lnk",
       "author": "EmuLnk",
       "name": "Dolphin (EmuLnk)",
@@ -34,7 +34,7 @@
       "overrideSource": "GitHub"
     },
     {
-      "id": "com.emulnk.ppsspp",
+      "id": "org.ppsspp.ppsspplnk",
       "url": "https://github.com/EmuLnk/ppsspp-lnk",
       "author": "EmuLnk",
       "name": "PPSSPP (EmuLnk)",
