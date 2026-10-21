@@ -1289,6 +1289,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     } else if (gid != null && con != null) {
                         refreshThemesForGame(gid, con)
                     }
+                    // stop() above also cancelled polling for the active theme; restart it
+                    _selectedTheme.value?.let { loadAndApplyThemeSettings(it) }
                 }
 
                 delay(1500) // hold success state visible
